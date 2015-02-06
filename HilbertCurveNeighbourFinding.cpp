@@ -1,10 +1,10 @@
+
 #include <bits/stdc++.h>
 #include <mpi.h>
 using namespace std;
 
-#define EPS 1e-4	
 
-struct Point 
+struct Point // Point structure
 {
 	double x, y;
 	Point() {}
@@ -14,19 +14,21 @@ struct Point
 		y *= -k;
 		x *= k;
 	}
-	Point operator+(Point p) {return Point(x + p.x, y + p.y); }
-	Point operator*(double k) {return Point(k * x, k * y); }
-	double odl(Point p) {return sqrt((x-p.x)*(x-p.x) + (y-p.y)*(y-p.y));}
+	Point operator+(Point p) {return Point(x + p.x, y + p.y); } // addition operator 
+	Point operator*(double k) {return Point(k * x, k * y); } // multiplication operator
+	double distance(Point p) {return sqrt((x-p.x)*(x-p.x) + (y-p.y)*(y-p.y));} // distance counting in Euclidean 
 };
 
-bool operator < (Point a, Point b) {
+bool operator < (Point a, Point b) { // nothing relevant - just for sorting purposes
 	return a.x < b.x;
 }
 
 Point rotate(Point p, int k) { p.rotate(k); return p; }
 Point mirrorX(Point p) {return Point(-p.x, p.y); }
 
-inline double HilbertPos(Point p, double l)
+#define EPS 1e-4	
+
+inline double HilbertPos(Point p, double l = 1) // Hilbert Curve Position Finding, returns value in [0,1] for given point
 {
 	if(l < EPS) return 0.0;
 	if(p.x <= 0 && p.y <= 0) {return l / 4.0 + HilbertPos((p + Point(0.5, 0.5)) * 2.0, l / 4.0); }
@@ -36,6 +38,7 @@ inline double HilbertPos(Point p, double l)
 	return 0.0;
 }
 
+// some useful typedefs
 typedef pair <int, Point> PIP;
 typedef pair <int,int> pii;
 typedef pair<double, Point> pdp;
@@ -43,23 +46,22 @@ typedef pair<double,double> pdd;
 typedef pair< int, vector<pdd> > pivpdd;
 typedef pair< double, int> pdi;
 
-inline bool intersects(Point u, double a, Point v, double b)
+inline bool intersects(Point u, double d1, Point v, double d2) // if square which center is in u intersects sqare which center is in v (d1 and d2 are halfs of square sides)
 {
-	if(abs(u.x - v.x) <= a + b && abs(u.y - v.y) <= a + b) return true;
+	if(abs(u.x - v.x) <= d1 + d2 && abs(u.y - v.y) <= d1 + d2) return true;
 	return false; 
 }
 
-inline bool contains(Point u, double a, Point v, double b) //czy u sie zawiera w v
+inline bool contains(Point u, double d1, Point v, double d2) // if square which center is in u contains square which center is in v (d1 and d2 are halfs of square sides)
 {
-	return u.x - a >= v.x - b && u.x + a <= v.x + b && u.y - a >= v.y - b && u.y + a <= v.y + b;
+	return u.x - d1 >= v.x - d2 && u.x + d1 <= v.x + d2 && u.y - d1 >= v.y - d2 && u.y + d1 <= v.y + d2;
 }
 
-inline double min(double a, double b, double c, double d) {
+inline double min(double a, double b, double c, double d) { // min function for 4 numbers
 	return min(min(a,b),min(c,d));
 }
 
-
-void query(Point u, double a, Point p, double r, double l, vector <pdd> &res) // u to środek kwadratu, a to połowa boku kwadratu, res to lista wyników
+void query(Point u, double a, Point p, double r, double l, vector <pdd> &res) // query adds intervals on Hilbert Curve to res, where neighbours of p may appear
 {
 	if(!intersects(u, a, p, r)) return;
 	if(contains(u, a, p, r) or l < 0.01) 
@@ -106,7 +108,7 @@ inline void dodaj( vector<pdd> &res) {
 
 double force_van_der_vaals(Point x, Point y)
 {
-	double r = x.odl(y);
+	double r = x.distance(y);
 	double a = 1.0;
 	double b = 1.0;
 	return a / pow(r, 13.0) - b / pow(r, 7.0);
@@ -141,6 +143,7 @@ bool blisko(double a, double b) {
 
 double r;
 int ps;
+
 int main(int argc, char *argv[]) {
 	freopen("HilbertInput","r",stdin);
 	MPI_Init(&argc, &argv);
@@ -300,6 +303,8 @@ int main(int argc, char *argv[]) {
 	}*/
 
 	int* ile_od_sasiada = new int[size];
+	for(int i=0;i<size;i++)
+		ile_od_sasiada[i] = 0;
 	for(int i=0;i<(int)przydzialy.size();i++) {
 		if(przydzialy[i].procesor != rank)
 			ile_od_sasiada[przydzialy[i].procesor]++;
@@ -307,9 +312,9 @@ int main(int argc, char *argv[]) {
 	int* ile_do_mnie = new int[size];
 	MPI_Alltoall(ile_od_sasiada, 1, MPI_INT,ile_do_mnie, 1, MPI_INT,MPI_COMM_WORLD);
 
-
+	
 	int ptr = 0;
-	MPI_Request *gunwo = new MPI_Request[size];
+	MPI_Request *sendingRequest = new MPI_Request[size];
 	for(int i=0;i<size;i++) if(i!=rank && ile_od_sasiada[i] != 0) {
 		double *intervalsPls = new double [ile_od_sasiada[i]*2];
 		int ilePls = 0;
@@ -321,8 +326,9 @@ int main(int argc, char *argv[]) {
 			}
 			ptr++;
 		}
-		MPI_Isend(intervalsPls, 2*ile_od_sasiada[i], MPI_DOUBLE,i,2,MPI_COMM_WORLD,&gunwo[i]);
+		MPI_Isend(intervalsPls, 2*ile_od_sasiada[i], MPI_DOUBLE,i,2,MPI_COMM_WORLD,&sendingRequest[i]);
 	}
+
 
 	double **intervalsSir = new double* [size];
 	MPI_Request *mpir2 = new MPI_Request[size];
@@ -336,10 +342,11 @@ int main(int argc, char *argv[]) {
 	}
 	MPI_Status *stat = new MPI_Status[size*2];
 	for(int i=0;i<size;i++) if(i!=rank && ile_od_sasiada[i] != 0)
-		MPI_Wait(&gunwo[i],&stat[i]);
+		MPI_Wait(&sendingRequest[i],&stat[i]);
 	for(int i=0;i<size;i++) if(i!=rank && ile_do_mnie[i] != 0)
 		MPI_Wait(&mpir2[i],&stat[size+i]);
 	MPI_Barrier(MPI_COMM_WORLD);
+
 	/*MPI_Finalize();
 	return 0;*/
 
@@ -424,18 +431,18 @@ int main(int argc, char *argv[]) {
 	for(int i=0;i<ps;i++) {
 		for(int j=0;j<ps;j++) if(i!=j) {
 			forcex[i] += (coordinates[j].x-coordinates[i].x)/
-			coordinates[i].odl(coordinates[j]) * force_van_der_vaals(coordinates[i], coordinates[j]);
+			coordinates[i].distance(coordinates[j]) * force_van_der_vaals(coordinates[i], coordinates[j]);
 			forcey[i] += (coordinates[j].y-coordinates[i].y)/
-			coordinates[i].odl(coordinates[j]) * force_van_der_vaals(coordinates[i], coordinates[j]);
+			coordinates[i].distance(coordinates[j]) * force_van_der_vaals(coordinates[i], coordinates[j]);
 		}
 	}
 
 	for(int i=0;i<ps;i++) {
-		for(int j=0;j<(int)box.size();j++) if(coordinates[i].odl(box[j].second) <= r) {
+		for(int j=0;j<(int)box.size();j++) if(coordinates[i].distance(box[j].second) <= r) {
 			forcex[i] += (box[j].second.x-coordinates[i].x)/
-			coordinates[i].odl(box[j].second) * force_van_der_vaals(coordinates[i], box[j].second);
+			coordinates[i].distance(box[j].second) * force_van_der_vaals(coordinates[i], box[j].second);
 			forcey[i] += (box[j].second.y-coordinates[i].y)/
-			coordinates[i].odl(box[j].second) * force_van_der_vaals(coordinates[i], box[j].second);
+			coordinates[i].distance(box[j].second) * force_van_der_vaals(coordinates[i], box[j].second);
 		}
 	}
 
@@ -453,6 +460,9 @@ int main(int argc, char *argv[]) {
 	}
 
 	
+	cout << "Jestem procesem " << rank << " i kończę\n";
 	MPI_Finalize();
 	return 0;
+
 }
+
