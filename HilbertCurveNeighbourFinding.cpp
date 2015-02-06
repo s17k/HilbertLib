@@ -28,7 +28,7 @@ Point mirrorX(Point p) {return Point(-p.x, p.y); }
 
 #define EPS 1e-4	
 
-inline double HilbertPos(Point p, double l = 1) // Hilbert Curve Position Finding, returns value in [0,1] for given point
+inline double HilbertPos(Point p, double l = 1.0) // Hilbert Curve Position Finding, returns value in [0,1] for given point
 {
 	if(l < EPS) return 0.0;
 	if(p.x <= 0 && p.y <= 0) {return l / 4.0 + HilbertPos((p + Point(0.5, 0.5)) * 2.0, l / 4.0); }
@@ -67,10 +67,10 @@ void query(Point u, double a, Point p, double r, double l, vector <pdd> &res) //
 	if(contains(u, a, p, r) or l < 0.01) 
 	{
 		double c = min(
-		 HilbertPos(Point(u.x + a / 2.0, u.y + a / 2.0), 1.0),
-		 HilbertPos(Point(u.x - a / 2.0, u.y + a / 2.0), 1.0), 
-		 HilbertPos(Point(u.x - a / 2.0, u.y - a / 2.0), 1.0), 
-		 HilbertPos(Point(u.x + a / 2.0, u.y - a / 2.0), 1.0)
+		 HilbertPos(Point(u.x + a / 2.0, u.y + a / 2.0)),
+		 HilbertPos(Point(u.x - a / 2.0, u.y + a / 2.0)), 
+		 HilbertPos(Point(u.x - a / 2.0, u.y - a / 2.0)), 
+		 HilbertPos(Point(u.x + a / 2.0, u.y - a / 2.0))
 		); 
 		res.push_back(pdd(c, c + l));
 	} else {
@@ -82,21 +82,20 @@ void query(Point u, double a, Point p, double r, double l, vector <pdd> &res) //
 }
 
 
-vector< pivpdd > odpowiedzi;
 
-struct przydzial {
+struct assignement {
 	double p;
 	double k;
 	int procesor;
-	przydzial () {}
-	przydzial (double a, double b, int c) {p = a, k = b, procesor = c;}	
+	assignement () {}
+	assignement (double a, double b, int c) {p = a, k = b, procesor = c;}	
 };
 
-bool operator < (przydzial x, przydzial y) {
+bool operator < (assignement x, assignement y) {
 	return pdd(x.p,x.k) < pdd(y.p,y.k);
 }
 
-vector<przydzial> przydzialy;
+vector<assignement> assignements;
 
 vector<pdd> worek;
 
@@ -106,27 +105,27 @@ inline void dodaj( vector<pdd> &res) {
 	}		
 }
 
-double force_van_der_vaals(Point x, Point y)
+/*double force_van_der_vaals(Point x, Point y) // van der vaals physics
 {
 	double r = x.distance(y);
 	double a = 1.0;
 	double b = 1.0;
 	return a / pow(r, 13.0) - b / pow(r, 7.0);
-}
+}*/
 
-vector<przydzial> cores;
+vector<assignement> cores;
 
 void dodaj_przedzial(double p, double k) {
-	vector <przydzial>::iterator it = lower_bound(cores.begin(), cores.end(), przydzial(p, 0, 0));
+	vector <assignement>::iterator it = lower_bound(cores.begin(), cores.end(), assignement(p, 0, 0));
 	
 	if(it != cores.begin()) {
 		it--;
-		if(p < it -> k) przydzialy.push_back(przydzial(p, min(it -> k, k), it -> procesor));
+		if(p < it -> k) assignements.push_back(assignement(p, min(it -> k, k), it -> procesor));
 		it++;
 	}
 	
 	while (it != cores.end() && it -> p <= k) {
-		przydzialy.push_back(przydzial(it -> p, min(it -> k, k), it -> procesor));
+		assignements.push_back(assignement(it -> p, min(it -> k, k), it -> procesor));
 		it++;
 	}		
 }
@@ -141,10 +140,11 @@ bool blisko(double a, double b) {
 	return false;
 }
 
-double r;
-int ps;
+double radius; // radius - specify how far a point must be to be a neighbour
+int pointCount; // number of points in single process
 
 int main(int argc, char *argv[]) {
+	vector< pivpdd > odpowiedzi;
 	freopen("HilbertInput","r",stdin);
 	MPI_Init(&argc, &argv);
 	int rank, size;
@@ -155,7 +155,7 @@ int main(int argc, char *argv[]) {
 	vector<double> curvePos;
 
 	if(rank == 0) {
-		cin >> r;
+		cin >> radius;
 		int n; cin >> n;
 		vector <Point> points(n);
 		vector <pdi> HilPos(n);
@@ -183,7 +183,7 @@ int main(int argc, char *argv[]) {
 			intervals[2*akt] = min(intervals[2*akt], HilPos[i].first);
 			intervals[2*akt+1] = max(intervals[2*akt+1], HilPos[i].first);
 		}
-		intervals[2*size] = r;
+		intervals[2*size] = radius;
 	 	MPI_Bcast( intervals, 2*size+1, MPI_DOUBLE, 0, MPI_COMM_WORLD );
 		/*for(int i = 0; i < 2 * size; ++i) cout << intervals[i] << ' ';
 		cout << endl;*/
@@ -193,7 +193,7 @@ int main(int argc, char *argv[]) {
 			arr[i] = procki[i].size();
 			//cout << "procesor " << i << " ma " << arr[i] << endl;
 		}
-		ps = arr[0];
+		pointCount = arr[0];
 		//cout << endl;
 		int *recvBuffer = new int[1];
 		MPI_Scatter(arr, 1, MPI_INT, recvBuffer, 1, MPI_INT, 0, MPI_COMM_WORLD);
@@ -215,7 +215,7 @@ int main(int argc, char *argv[]) {
 			curvePos.push_back(wspolrzedne[i*3+2]);
 		}
 		for(int i=0;i<size;i++) {
-			cores.push_back(przydzial(intervals[i*2],intervals[i*2+1],i));
+			cores.push_back(assignement(intervals[i*2],intervals[i*2+1],i));
 		}
 
 		MPI_Barrier(MPI_COMM_WORLD);
@@ -229,12 +229,12 @@ int main(int argc, char *argv[]) {
 			cout << "(" << inter[i] << ", " << inter[i+1] << ") ";
 		}
 		cout << endl;*/
-		r = inter[2*size];
+		radius = inter[2*size];
 		int* recvBuffer = new int[1];
 		MPI_Scatter(NULL,1,MPI_INT,recvBuffer,1,MPI_INT,0,MPI_COMM_WORLD);
 		//cout << "Jestem procesorem #" << rank << " i dostalem " << recvBuffer[0] << endl;
 		double *coor = new double[recvBuffer[0]*3];
-		ps = recvBuffer[0];
+		pointCount = recvBuffer[0];
 		MPI_Status stat;
 		MPI_Recv(coor, recvBuffer[0]*3, MPI_DOUBLE, 0, 1, MPI_COMM_WORLD, &stat);
 		//cout << "Jestem procesorem #" << rank << " i dostalem wspolrzedne :\n";
@@ -242,7 +242,7 @@ int main(int argc, char *argv[]) {
 			cout << "Jestem " << rank <<  "(" << coor[i] << ", " << coor[i+1] << ") -> " << coor[i+2] << endl;
 		}*/
 		for(int i=0;i<size;i++) {
-			cores.push_back(przydzial(inter[i*2],inter[i*2+1],i));
+			cores.push_back(assignement(inter[i*2],inter[i*2+1],i));
 		}
 		for(int i=0;i<recvBuffer[0];i++) {
 			coordinates.push_back(Point(coor[i*3], coor[i*3+1]));
@@ -252,9 +252,9 @@ int main(int argc, char *argv[]) {
 		//cout << "kończy procesor " << rank << endl;
 	}
 	vector <pdd> res;
-	for(int i=0;i<ps;i++) {
+	for(int i=0;i<pointCount;i++) {
 		res.clear();
-		query(Point(0.0, 0.0), 1.0, coordinates[i], r, 1.0, res);
+		query(Point(0.0, 0.0), 1.0, coordinates[i], radius, 1.0, res);
 		odpowiedzi.push_back(pivpdd(i,res));	
 		assert(res.size()>0);
 	}
@@ -297,17 +297,17 @@ int main(int argc, char *argv[]) {
 		dodaj_przedzial(wspolne[i].first, wspolne[i].second);
 	}
 	MPI_Barrier(MPI_COMM_WORLD);
-	/*for(int i=0;i<(int)przydzialy.size();i++) {
-		cout << "procesor " << rank << " ma sasiada od " << przydzialy[i].p << " do " << przydzialy[i].k << "ktory jest procesorem " << przydzialy[i].procesor << endl;
-		assert(przydzialy[i].p-1e-12 <= przydzialy[i].k);
+	/*for(int i=0;i<(int)assignements.size();i++) {
+		cout << "procesor " << rank << " ma sasiada od " << assignements[i].p << " do " << assignements[i].k << "ktory jest procesorem " << assignements[i].procesor << endl;
+		assert(assignements[i].p-1e-12 <= assignements[i].k);
 	}*/
 
 	int* ile_od_sasiada = new int[size];
 	for(int i=0;i<size;i++)
 		ile_od_sasiada[i] = 0;
-	for(int i=0;i<(int)przydzialy.size();i++) {
-		if(przydzialy[i].procesor != rank)
-			ile_od_sasiada[przydzialy[i].procesor]++;
+	for(int i=0;i<(int)assignements.size();i++) {
+		if(assignements[i].procesor != rank)
+			ile_od_sasiada[assignements[i].procesor]++;
 	}
 	int* ile_do_mnie = new int[size];
 	MPI_Alltoall(ile_od_sasiada, 1, MPI_INT,ile_do_mnie, 1, MPI_INT,MPI_COMM_WORLD);
@@ -318,10 +318,10 @@ int main(int argc, char *argv[]) {
 	for(int i=0;i<size;i++) if(i!=rank && ile_od_sasiada[i] != 0) {
 		double *intervalsPls = new double [ile_od_sasiada[i]*2];
 		int ilePls = 0;
-		while(ptr < przydzialy.size() && przydzialy[ptr].procesor <= i) {
-			if(przydzialy[ptr].procesor == i) {
-				intervalsPls[ilePls] = przydzialy[ptr].p;
-				intervalsPls[ilePls+1] = przydzialy[ptr].k;
+		while(ptr < assignements.size() && assignements[ptr].procesor <= i) {
+			if(assignements[ptr].procesor == i) {
+				intervalsPls[ilePls] = assignements[ptr].p;
+				intervalsPls[ilePls+1] = assignements[ptr].k;
 				ilePls+=2;
 			}
 			ptr++;
@@ -425,11 +425,12 @@ int main(int argc, char *argv[]) {
 		cout << "jestem " << rank << " Mam sasiada!  : " << box[i].second.x << " " << box[i].second.y << endl;
 	}*/
 
-	vector <double> forcex(ps);
-	vector <double> forcey(ps);
+	/* Van der Vaals Force computing
+	vector <double> forcex(pointCount);
+	vector <double> forcey(pointCount);
 
-	for(int i=0;i<ps;i++) {
-		for(int j=0;j<ps;j++) if(i!=j) {
+	for(int i=0;i<pointCount;i++) {
+		for(int j=0;j<pointCount;j++) if(i!=j) {
 			forcex[i] += (coordinates[j].x-coordinates[i].x)/
 			coordinates[i].distance(coordinates[j]) * force_van_der_vaals(coordinates[i], coordinates[j]);
 			forcey[i] += (coordinates[j].y-coordinates[i].y)/
@@ -437,7 +438,7 @@ int main(int argc, char *argv[]) {
 		}
 	}
 
-	for(int i=0;i<ps;i++) {
+	for(int i=0;i<pointCount;i++) {
 		for(int j=0;j<(int)box.size();j++) if(coordinates[i].distance(box[j].second) <= r) {
 			forcex[i] += (box[j].second.x-coordinates[i].x)/
 			coordinates[i].distance(box[j].second) * force_van_der_vaals(coordinates[i], box[j].second);
@@ -445,19 +446,10 @@ int main(int argc, char *argv[]) {
 			coordinates[i].distance(box[j].second) * force_van_der_vaals(coordinates[i], box[j].second);
 		}
 	}
-
-	/*for(int i=0;i<ps;i++) {
+	*/
+	/*for(int i=0;i<pointCount;i++) {
 		cout << "punkt o wspolrzednych (" << coordinates[i].x << ", " << coordinates[i].y << ") -> " << "f(x) = " << forcex[i] << ", f(y) = " << forcey[i] << endl;
 	}*/
-	if(true) {
-		for(int i=0;i<ps;i++) {
-			cout << coordinates[i].x << " " << coordinates[i].y << " " << rank << endl;
-		}
-
-		for(int i=0;i<box.size();i++) {
-			cout << box[i].second.x << " " << box[i].second.y << " " << rank+7 << endl;
-		}
-	}
 
 	
 	cout << "Jestem procesem " << rank << " i kończę\n";
