@@ -1,2 +1,2 @@
-# HilbertLight
-Lightweight Libary for Hilbert Curve Schedulling 
+# HilbertLib
+Lightweight and Fast Libary for Hilbert Curve Schedulling 
