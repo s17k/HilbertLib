@@ -1,4 +1,3 @@
-
 #include <bits/stdc++.h>
 #include <mpi.h>
 using namespace std;
@@ -27,6 +26,22 @@ Point rotate(Point p, int k) { p.rotate(k); return p; }
 Point mirrorX(Point p) {return Point(-p.x, p.y); }
 
 #define EPS 1e-4	
+
+inline double HilbertPosNonRecursive(Point p) {
+	double l = 1.0;
+	double sum = 0;
+	while( l > EPS) {
+		//cout << l << " sum : " << sum << endl;
+		l/=4.0;
+		if(p.x <= 0 && p.y <= 0) {sum += l; p = (p + Point(0.5, 0.5)) * 2.0;}
+		else if(p.x <= 0 && p.y > 0) {p = mirrorX(rotate((p + Point(0.5, -0.5)) * 2.0, 1));}
+		else if(p.x > 0 && p.y <= 0) {sum += l*2.0; p = (p + Point(-0.5, 0.5)) * 2.0;}
+		else if(p.x > 0 && p.y > 0) {sum += l*3.0; p = mirrorX(rotate((p + Point(-0.5, -0.5)) * 2.0, -1));}
+		else
+			cerr << " HilbertPosNonRecurisive Error " << endl;
+	}	
+	return sum;
+}
 
 inline double HilbertPos(Point p, double l = 1.0) // Hilbert Curve Position Finding, returns value in [0,1] for given point
 {
@@ -67,10 +82,10 @@ void query(Point u, double a, Point p, double r, double l, vector <pdd> &res) //
 	if(contains(u, a, p, r) or l < 0.01) 
 	{
 		double c = min(
-		 HilbertPos(Point(u.x + a / 2.0, u.y + a / 2.0)),
-		 HilbertPos(Point(u.x - a / 2.0, u.y + a / 2.0)), 
-		 HilbertPos(Point(u.x - a / 2.0, u.y - a / 2.0)), 
-		 HilbertPos(Point(u.x + a / 2.0, u.y - a / 2.0))
+		 HilbertPosNonRecursive(Point(u.x + a / 2.0, u.y + a / 2.0)),
+		 HilbertPosNonRecursive(Point(u.x - a / 2.0, u.y + a / 2.0)), 
+		 HilbertPosNonRecursive(Point(u.x - a / 2.0, u.y - a / 2.0)), 
+		 HilbertPosNonRecursive(Point(u.x + a / 2.0, u.y - a / 2.0))
 		); 
 		res.push_back(pdd(c, c + l));
 	} else {
@@ -144,9 +159,9 @@ double radius; // radius - specify how far a point must be to be a neighbour
 int pointCount; // number of points in single process
 
 int main(int argc, char *argv[]) {
+	MPI_Init(&argc, &argv);
 	vector< pivpdd > odpowiedzi;
 	freopen("HilbertInput","r",stdin);
-	MPI_Init(&argc, &argv);
 	int rank, size;
 	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 	MPI_Comm_size(MPI_COMM_WORLD, &size);
@@ -162,7 +177,7 @@ int main(int argc, char *argv[]) {
 		for(int i=0; i < n; i++)
 		{
 			cin >> points[i].x >> points[i].y;
-			HilPos[i] = make_pair( HilbertPos(points[i], 1.0), i );
+			HilPos[i] = make_pair( HilbertPosNonRecursive(points[i]), i );
 		}
 		
 		sort(HilPos.begin(), HilPos.end());
@@ -421,9 +436,9 @@ int main(int argc, char *argv[]) {
 
 	sort(box.begin(),box.end());
 
-	/*for(int i=0;i<box.size();i++) {
+	for(int i=0;i<box.size();i++) {
 		cout << "jestem " << rank << " Mam sasiada!  : " << box[i].second.x << " " << box[i].second.y << endl;
-	}*/
+	}
 
 	/* Van der Vaals Force computing
 	vector <double> forcex(pointCount);
