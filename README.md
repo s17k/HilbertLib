@@ -5,5 +5,8 @@ Current versions of all files in this repo are unstable so rather don't use this
 
 Authors :
 1) Jakub Boguta. 
+
 2) Tomek Nowak. 
+
 3) Stanisław Szcześniak. 
+
