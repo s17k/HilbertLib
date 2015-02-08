@@ -1,7 +1,7 @@
 #include <bits/stdc++.h>
 #include <mpi.h>
-using namespace std;
 
+using namespace std;
 
 struct Point
 {
@@ -304,10 +304,10 @@ int main(int argc, char *argv[]) {
 		
 		double *wspolrzedne = new double [n*4];
 		for(int i=0;i<n*4;i+=4) {
-			wspolrzedne[i] = points[HilPos[i/3].second].x;
-			wspolrzedne[i+1] = points[HilPos[i/3].second].y;
-			wspolrzedne[i+2] = points[HilPos[i/3].second].z;
-			wspolrzedne[i+3] = HilPos[i/3].first;
+			wspolrzedne[i] = points[HilPos[i/4].second].x;
+			wspolrzedne[i+1] = points[HilPos[i/4].second].y;
+			wspolrzedne[i+2] = points[HilPos[i/4].second].z;
+			wspolrzedne[i+3] = HilPos[i/4].first;
 		}
 		
 		int catfish = arr[0]*4;
@@ -337,7 +337,7 @@ int main(int argc, char *argv[]) {
 		radius = inter[2*size];
 		int* recvBuffer = new int[1];
 		MPI_Scatter(NULL,1,MPI_INT,recvBuffer,1,MPI_INT,0,MPI_COMM_WORLD);
-		cout << "Jestem procesorem #" << rank << " i dostalem " << recvBuffer[0] << endl;
+		//cout << "Jestem procesorem #" << rank << " i dostalem " << recvBuffer[0] << endl;
 		double *coor = new double[recvBuffer[0]*4];
 		pointCount = recvBuffer[0];
 		MPI_Status stat;
@@ -358,8 +358,8 @@ int main(int argc, char *argv[]) {
 	}
 	vector <pdd> res;
 	for(int i=0;i<pointCount;i++) {
-		if(rank == 6)
-			cout << "sprawdzam " << coordinates[i].x << " " << coordinates[i].y << " "  << coordinates[i].z << endl;
+		/*if(true)
+			cout << "sprawdzam " << coordinates[i].x << " " << coordinates[i].y << " "  << coordinates[i].z << endl;*/
 		res.clear();
 		query(Point(0.0, 0.0, 0.0), 1.0, coordinates[i], radius, 1.0, res);
 		odpowiedzi.push_back(pivpdd(i,res));	
@@ -457,11 +457,6 @@ int main(int argc, char *argv[]) {
 		MPI_Wait(&mpir2[i],&stat[size+i]);
 	MPI_Barrier(MPI_COMM_WORLD);
 
-	/*MPI_Finalize();
-	return 0;*/
-
-	
-
 
 	int *ile_punktow_ma_dla_mnie_sasiad = new int[size];
 	int *ilejamamdla = new int[size];
@@ -486,23 +481,31 @@ int main(int argc, char *argv[]) {
 	for(int i=0;i<size;i++)
 		ilejamamdla[i] = wyn[i].size();
 	MPI_Alltoall(ilejamamdla, 1, MPI_INT,ile_punktow_ma_dla_mnie_sasiad, 1, MPI_INT,MPI_COMM_WORLD);
+	/*for(int i=0;i<size;i++) {
+		cout << "jestem " << rank << " i mam dla " << i << " "<< ilejamamdla[i] << endl;
+		cout << "jestem " << rank << " i sasiad " << i << " ma dla mnie " << ile_punktow_ma_dla_mnie_sasiad[i] << endl;
+	}*/
 	MPI_Barrier(MPI_COMM_WORLD);
 	
 
-	MPI_Request *kupaw = new MPI_Request[size];
+	MPI_Request *neighbourSendMPIRequest = new MPI_Request[size];
 
+	double **buf = new double*[size];
 	for(int i=0;i<size;i++) if(i!=rank && wyn[i].size() > 0) {
-		double *buf = new double[wyn[i].size()*4];
+		buf[i] = new double[wyn[i].size()*4];
 		for(int k=0;k<(int)wyn[i].size();k++) {
-			buf[k*3] = wyn[i][k].x;
-			buf[k*3+1] = wyn[i][k].y;
-			buf[k*3+2] = wyn[i][k].z;
-			buf[k*3+3] = wyn77[i][k];
+			buf[i][k*4] = wyn[i][k].x;
+			buf[i][k*4+1] = wyn[i][k].y;
+			buf[i][k*4+2] = wyn[i][k].z;
+			//cout << "wrzucam do bufa " << wyn[i][k] << endl;
+			buf[i][k*4+3] = wyn77[i][k];
 		}
-		MPI_Isend(buf, wyn[i].size()*4, MPI_DOUBLE, i,7,MPI_COMM_WORLD, &kupaw[i]);
+		/*for(int j=0;j<(int)wyn[i].size()*4;j++)
+			cout << buf[i][j] << endl;*/
+		MPI_Isend(buf[i], wyn[i].size()*4, MPI_DOUBLE, i,7,MPI_COMM_WORLD, &neighbourSendMPIRequest[i]);
 	}
 	
-	MPI_Request *bagnov = new MPI_Request[size];
+	MPI_Request *neighbourRecvMPIRequest = new MPI_Request[size];
 
 	vector<pdp> box;
 	
@@ -512,17 +515,19 @@ int main(int argc, char *argv[]) {
 	for(int i=0;i<size;i++) if(i!=rank && ile_punktow_ma_dla_mnie_sasiad[i] > 0) {
 		buff[i] = new double[ile_punktow_ma_dla_mnie_sasiad[i]*4];
 		MPI_Irecv(buff[i], ile_punktow_ma_dla_mnie_sasiad[i]*4, MPI_DOUBLE,i,
-		              7, MPI_COMM_WORLD, &bagnov[i]);
+		              7, MPI_COMM_WORLD, &neighbourRecvMPIRequest[i]);
 	}
 	
 
 
 	for(int i=0;i<size;i++) if(i!=rank && wyn[i].size() > 0)  {
-		MPI_Wait(&kupaw[i],&stat[i]);
+		MPI_Wait(&neighbourSendMPIRequest[i],&stat[i]);
 	}
 	for(int i=0;i<size;i++) if(i!=rank && ile_punktow_ma_dla_mnie_sasiad[i] > 0) {
-		MPI_Wait(&bagnov[i],&stat[i+rank]);
+		MPI_Wait(&neighbourRecvMPIRequest[i],&stat[i+size]);
 	}
+
+	MPI_Barrier(MPI_COMM_WORLD);
 	
 
 	for(int i=0;i<size;i++) {
