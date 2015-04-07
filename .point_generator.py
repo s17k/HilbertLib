@@ -1,8 +1,8 @@
 import random
 random.seed()
 n = input()
-r = 0.1;
-print r;
+#r = 0.1;
+#print r;
 print n
 
 
@@ -36,5 +36,5 @@ def zrob_kule(m) :
 		print x+a,y+b,z+c
 
 for i in range(n) :
-	print random.random()*sting(),random.random()*sting()
+	print random.randint(1,32), random.randint(1,32), random.randint(1,32)
 
