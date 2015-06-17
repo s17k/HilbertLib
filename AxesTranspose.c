@@ -1,5 +1,5 @@
 #include<string.h>
-#include<stdlib,h>
+#include<stdlib.h>
 typedef unsigned int coord_t;
 // coordinates(X) ---> HilbertLibPosition(X) (changes X from coordinates in n dimensions to HilbertLibPosition)
 void AxestoTranspose( coord_t* X, int b, int n) { // position,bits,dimensions
@@ -39,7 +39,7 @@ void AxestoTranspose( coord_t* X, int b, int n) { // position,bits,dimensions
 	free(Y);
 }
 
-typedef HilbertLibPosition coord_t*;
+/*typedef HilbertLibPosition coord_t*;
 int HilbertLibPositionComparator(const HilbertLibPosition *A, const HilbertLibPosition *B, int size) { // maybe inlined
 	int r = memcmp(*A,*B,size);
 	if(r <= 0) return 1;
@@ -51,4 +51,4 @@ HilbertLibPosition* makeHilbertLibPosition(int dimensions) {
 }
 void HilbertLibPositionFree(HilbertLibPosition *X) {
 	free(X);
-}
+}*/
