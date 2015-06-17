@@ -7,52 +7,85 @@
 
 
 struct MDPoint {
-	coord_t* coords;
+	coord_t* coordinates;
 	void* own_data_ptr;
 };
 typedef struct MDPoint MDPoint;
 
-void* home_ptr;
-HilbertLibPosition* HilbertPos;
-int comp(const void *elem1, const void *elem2) {
-	int pos = elem1-home_ptr;
-	int pos2 = elem2-home_ptr;
-	return HilbertLibPositionComparator(HilbertLibPosition[pos], HilbertLibPosition[pos2]);
+void make_MDPoint(MDPoint *X, int dimensions) {
+	X->coordinates = calloc(dimensions, sizeof(coord_t));
+	X->own_data_ptr = NULL;
+};
+
+MDPoint* HomePtr;
+coord_t *HilbertPos;
+int HilbertLibCurveSortComparator(const void *_elem1, const void *_elem2) {
+	MDPoint* *__elem1 = (MDPoint**)_elem1;
+	MDPoint* *__elem2 = (MDPoint**)_elem2;
+	MDPoint* elem1 = *__elem1;
+	MDPoint* elem2 = *__elem2;
+
+	int pos = elem1-HomePtr;
+	int pos2 = elem2-HomePtr;
+	if(HilbertPos[pos] < HilbertPos[pos2])
+		return 1;
+	else
+		return 0;
 }
 
-// X - data, ds - |data|, b - bits, n - |dimensions|
-HilbertLibPosition* HilbertLibCurveSort(MDPoint *X, MDPoint* *SortedData, int ds, int b, int n) { 	
-	HilbertLibPosition* res = calloc(ds,sizeof(HilbertLibPosition));
+// X - data, Datasize - |data|, b - bits, n - |dimensions|
+void HilbertLibNodeCurveSort(MDPoint *X, MDPoint *SortedData, coord_t *HCoordinates, int Datasize, int b, int n) { 	
+	MDPoint* res = calloc(Datasize,sizeof(MDPoint)); // miejsce do operowania AxestoTranspose
 	int i=0;
-	for(i=0;i<ds;i++) {
-		res[i] = makeHilbertLibPosition(n);
-		memcpy(res[i],X[i].coords,sizeof(coord_t)*n);
-		AxestoTranspose(res[i],b,n);
+	for(i=0;i<Datasize;i++) { // saving i-th Hilbert Coordinates in res[i].coords[0]
+		make_MDPoint(&res[i], n);
+		memcpy(res[i].coordinates,X[i].coordinates,sizeof(coord_t)*n);
+		AxestoTranspose(res[i].coordinates,b,n);
 	}
-	void* ptrs = calloc(ds,sizeof(void*));
-	for(i=0;i<ds;i++) 
+	MDPoint* *ptrs = calloc(Datasize,sizeof(MDPoint*));
+	for(i=0;i<Datasize;i++) 
 		ptrs[i] = &X[i];
-	home_ptr = (void*) X;
-	HilbertPos = res;
-	qsort(ptrs,ds,sizeof(*ptrs),comp);
-	*SortedData = calloc(ds,sizeof(MDPoint));
-	for(i=0;i<ds;i++) {
-		(*SortedData)[i] = *(ptrs[i]);
+	HomePtr = X;
+	coord_t* first_elem = calloc(Datasize,sizeof(coord_t));
+	for(i=0;i<Datasize;i++) 
+		first_elem[i] = res[i].coordinates[0];
+	HilbertPos = first_elem;
+	qsort(ptrs,Datasize,sizeof(MDPoint*),HilbertLibCurveSortComparator);
+	HCoordinates = first_elem;
+	//free(first_elem); // needed for qsort only (but returned)
+	SortedData = calloc(Datasize,sizeof(MDPoint));
+	for(i=0;i<Datasize;i++) {
+		SortedData[i] = *(ptrs[i]);
 	}
 	free(X);
 	free(ptrs);
-	return res;
+	free(res);
 }
 
-coord* HilbertLibMakeBins(MDPoint *X, MDPoint) {}
+//coord_t* HilbertLibMakeBins(MDPoint *X, MDPoint) {}
 
-int HilbertLibBinSearch(HilbertLibPosition *X, int ds, HilbertLibPosition right) { // last <= right
-	int left = 0, right = ds - 1, middle;
-	while(HilbertLibPositionComparator()) {
-		middle = left;
+int HilbertLibRootBinSearch(// how many nodes have hcoordinates <= Right
+coord_t *HCoordinates, 
+int Datasize, 
+coord_t Right) 
+{ 	
+	int bsleft = 0, bsright = Datasize, bsmiddle;  // binary search left,right,middle
+	// properly it is binsearching the first node which have hcoordinate > Right
+	while(bsleft < bsright) {	
+		bsmiddle = (bsleft + bsright)/2;
+		if(HCoordinates[bsmiddle] <= Right) {
+			bsleft = bsmiddle+1;
+		} else {
+			bsright = bsmiddle;
+		}
 	}
+	return bsleft;
 }
 
-int HilbertLibHowMany(HilbertLibPosition *X, int ds, HilbertLibPosition left, HilbertLibPosition right) {
-	return HilbertLibBinSearch(X,ds,right) - HilbertLibBinSearch(X,ds,left);
+// counting all nodes(hc) which satisfy : Left < hc <= Right
+int HilbertLibRootHowMany(coord_t *HCoordinates, int Datasize, coord_t Left, coord_t Right) { 
+	return 
+		HilbertLibRootBinSearch(HCoordinates,Datasize,Right) - 
+		HilbertLibRootBinSearch(HCoordinates,Datasize,Left);
 }
+
