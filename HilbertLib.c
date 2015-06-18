@@ -3,13 +3,16 @@
 #include <string.h>
 #include <stdbool.h>
 #include <mpi.h>
+#include <time.h>
 #include "AxesTranspose.c"
+#include "BinsBox.c"
 
 
 struct MDPoint {
 	coord_t* coordinates;
 	void* own_data_ptr;
 };
+
 typedef struct MDPoint MDPoint;
 
 void make_MDPoint(MDPoint *X, int dimensions) {
@@ -33,12 +36,12 @@ int HilbertLibCurveSortComparator(const void *_elem1, const void *_elem2) {
 		return 0;
 }
 
-// X - data, Datasize - |data|, b - bits, n - |dimensions|
-void HilbertLibNodeCurveSort(
+// X - data, Datasize - |data|, b - bits, n - |dimensions| [Node]
+void HilbertLibNodeCurveSort( 
 MDPoint *X, // particles represented as MDPoints (input)
 MDPoint* *SortedData, //Sorted MDPoints to return (output)
 coord_t* *HCoordinates, // Hilbert coordinates to return (output)
-int Datasize, // |data| - number of particles in this node (input)
+int Datasize, // |daata| - number of particles in this node (input)
 int b,// precision (input)
 int n // dimensions (input)
 ) 
@@ -48,7 +51,9 @@ int n // dimensions (input)
 	for(i=0;i<Datasize;i++) { // saving i-th Hilbert Coordinates in res[i].coords[0]
 		make_MDPoint(&res[i], n);
 		memcpy(res[i].coordinates,X[i].coordinates,sizeof(coord_t)*n);
+		//printf("Znajduje H dla %d,",i);
 		AxestoTranspose(res[i].coordinates,b,n);
+		//printf(" Wyszlo mi %d\n",res[i].coordinates[0]);
 	}
 	MDPoint* *ptrs = calloc(Datasize,sizeof(MDPoint*));
 	for(i=0;i<Datasize;i++) 
@@ -72,7 +77,7 @@ int n // dimensions (input)
 	free(res);
 }
 
-// how many particles have hcoordinates <= Right
+// how many particles have hcoordinates <= Right [Node]
 int HilbertLibNodeBinSearch(
 coord_t *HCoordinates, 
 int Datasize, 
@@ -92,46 +97,15 @@ coord_t Right)
 	return bsleft;
 }
 
-// counting all nodes(hc) which satisfy : Left < hc <= Right
+// counting all nodes(hc) which satisfy : Left < hc <= Right [Node]
 int HilbertLibNodeHowMany(coord_t *HCoordinates, int Datasize, coord_t Left, coord_t Right) { 
 	return 
 		HilbertLibNodeBinSearch(HCoordinates,Datasize,Right) - 
 		HilbertLibNodeBinSearch(HCoordinates,Datasize,Left);
 }
 
-struct BinsBox {
-	coord_t* data;
-	size_t size;
-	size_t capacity;
-};
 
-typedef struct BinsBox BinsBox;
-
-void BinsBoxDoubleCapacity(BinsBox *b) {
-	b->data = (coord_t*)realloc((void*)b->data, b->capacity*2);
-	b->capacity*=2;
-}
-
-void BinsBoxPushBack(BinsBox *b, coord_t x) {
-	b->size++;
-	if(b->size > b->capacity) 
-		BinsBoxDoubleCapacity(b);
-	b->data[b->size-1] = x;
-}
-
-coord_t BinsBoxGet(BinsBox *b, size_t index) {
-	return b->data[index];
-}
-
-void BinsBoxDeallocate(BinsBox *b) {
-	free(b->data);
-	b->size = 0;
-	b->capacity = 0;
-}
-
-typedef struct BinsBox BinsBox;
-
-// divide points into bins[root] 
+// divide points into bins[Root] 
 
 int HilbertLibGetNOfParticles(int ProcessCount, int PointCount, int RootRank) {
 	int *recvbuf = calloc(ProcessCount,sizeof(int));
@@ -144,7 +118,8 @@ int HilbertLibGetNOfParticles(int ProcessCount, int PointCount, int RootRank) {
 	return suma;
 }
 
-coord_t HilbertLibCalculateNextBoundary(
+// Calculates the next boundary [Root]
+coord_t HilbertLibCalculateNextBoundary( 
 coord_t a, coord_t b, 
 coord_t *MyHCoordinates,
 int MyPointsCount,
@@ -162,7 +137,7 @@ int RootRank
 		sendBuff[0] = a;
 		sendBuff[1] = bsmiddle;
 		coord_t * recvBuff = calloc(2,sizeof(coord_t));
-		MPI_Scatter(sendBuff,2,MPI_UNSIGNED,recvBuff,2,MPI_UNSIGNED,RootRank,MPI_COMM_WORLD);
+		MPI_Scatter(sendBuff,2,MPI_COORD_T,recvBuff,2,MPI_COORD_T,RootRank,MPI_COMM_WORLD);
 		int singlebuff = HilbertLibNodeHowMany(MyHCoordinates,MyPointsCount,sendBuff[0],sendBuff[1]);
 		MPI_Gather(&singlebuff,1,MPI_INT,hm,1,MPI_INT,RootRank,MPI_COMM_WORLD);
 		suma = 0;
@@ -178,6 +153,7 @@ int RootRank
 	return bsmiddle;
 }
 
+// Make Bins [Root]
 void HilbertLibRootMakeBins(
 int RootRank, // rank of root
 size_t NodesCount, // number of nodes
@@ -206,24 +182,95 @@ int dimensions // |dimensions|
 	}
 }
 
-void HilbertLibMPISendNOfParticles(int what, int RootRank) {
+//Sends # of particles to Root [Node]
+void HilbertLibSendNOfParticles(int what, int RootRank) {
 	int sendBuff = what;
-	MPI_Gather(&sendBuff,1,MPI_INT,NULL,NULL,RootRank,MPI_COMM_WORLD);
+	MPI_Gather(&sendBuff,1,MPI_INT,NULL,0,NULL,RootRank,MPI_COMM_WORLD);
 }
 
-//divide points into bins[node]
-HilbertLibNodeMakeBins(coord_t *MyHCoordinates, size_t MyParticlesCount, int RootRank) {
+//divide points into bins[Node]
+void HilbertLibNodeMakeBins(coord_t *MyHCoordinates, size_t MyParticlesCount, int RootRank) {
 	//Send number of particles i have
-	HilbertLibMPISendNoOfParticles(MyParticlesCount);	
-	void * recvBuff = (void*) calloc(2,sizeof(coord_t));
+	HilbertLibSendNOfParticles(MyParticlesCount, RootRank);	
+	coord_t *recvBuff = calloc(2,sizeof(coord_t));
 	while(true) {
-		MPI_Scatter(NULL,NULL,NULL,recvBuff,2,MPI_INT,RootRank,MPI_COMM_WORLD);
+		MPI_Scatter(NULL,0,NULL,recvBuff,2,MPI_INT,RootRank,MPI_COMM_WORLD);
 		if(recvBuff[0] < 0) {
 			break;
 		}
-		int sendbuf = HilbertLibNodeHowMany(MyHCoordinates,MyParticlesCount,recvBuff[0],recvBuff[1]);
-		MPI_Gather(&sendbuf,1,MPI_INT,NULL,NULL,RootRank,MPI_COMM_WORLD);		
+		int sendbuf = HilbertLibNodeHowMany(
+			MyHCoordinates,
+			MyParticlesCount,
+			recvBuff[0],
+			recvBuff[1]
+		);
+		MPI_Gather(&sendbuf,1,MPI_INT,NULL,0,NULL,RootRank,MPI_COMM_WORLD);		
 	}
+}
+
+int main (int argc, char *argv[]) {
+	// Initialization
+	MPI_Init(&argc, &argv);
+	int rank,size;
+	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+	MPI_Comm_size(MPI_COMM_WORLD, &size);
+	printf("Witaj, jestem procesem # %d\n",rank);
+	#define ROOT 0
+	#define DIMENSIONS 3
+	#define BITS_PRECISION 5
+	// Random Input Generation
+	srand(time(NULL));
+	int MyPointsCount = rand()%5+3;
+	int i,j;
+	MDPoint *MyPoints = calloc(MyPointsCount,sizeof(MDPoint));
+	for(i=0;i<MyPointsCount;i++) {
+		make_MDPoint(&MyPoints[i],DIMENSIONS);
+		for(j=0;j<DIMENSIONS;j++) {
+			MyPoints[i].coordinates[j] = rand()%(1<<BITS_PRECISION);
+		}
+	}
+	
+	//Printing genereated points
+	/*for(i=0;i<MyPointsCount;i++) {
+		printf("Punkt #%d : ",i);
+		for(j=0;j<DIMENSIONS;j++) {
+			printf("%d ", MyPoints[i].coordinates[j]);
+		}
+		//printf("  | H : %d",HCoordinates[i]);
+		printf("\n");
+
+	}*/
+
+	MDPoint *SortedData;
+	coord_t *HCoordinates;
+	HilbertLibNodeCurveSort(
+		MyPoints,
+		&SortedData,
+		&HCoordinates,
+		MyPointsCount,
+		BITS_PRECISION,
+		DIMENSIONS
+	);
+	//Printing Sorted Points, and their HCoordinates
+	for(i=0;i<MyPointsCount;i++) {
+		printf("Punkt #%d : ",i);
+		for(j=0;j<DIMENSIONS;j++) {
+			printf("%d ", SortedData[i].coordinates[j]);
+		}
+		printf("  | H : %d",HCoordinates[i]);
+		printf("\n");
+
+	}
+	
+	/*
+	if(rank == ROOT) {
+		HilbertLibRootMakeBins;
+	} else {
+		HilbertLibNodeMakeBins;
+	}*/
+	printf("Żegnaj, jestem procesem #%d",rank);
+	MPI_Finalize();
+	return 0;
 }
 
 
