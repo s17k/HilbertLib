@@ -1,6 +1,0 @@
-root <- rearenge() - rearanżacja procesów
-	all <- curve_sort() // sortowanie w kazdym z procesów
-	root(k = liczba procesow) <- binsearch(ostatnia współrzędna na krzywej,inf) 
-		all <- how_many((a,b) = współrzędne przedziału) - pyta się każdego procesu ile 
-	root <- send_bins() - wysyła już policzone kubełki do wszystkich procesów
-	all <- send_and_recv() - wymiana procesów
