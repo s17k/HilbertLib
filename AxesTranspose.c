@@ -2,6 +2,7 @@
 #include<stdlib.h>
 typedef unsigned int coord_t;
 #define MPI_COORD_T MPI_UNSIGNED 
+#define COORD_T_MAX_VALUE ((coord_t)1<<31)
 // coordinates(X) ---> HilbertLibPosition(X) (changes X from coordinates in n dimensions to HilbertLibPosition)
 void AxestoTranspose( coord_t* X, int b, int n) { // position,bits,dimensions
 	coord_t M = 1 << (b-1), P, Q, t;
