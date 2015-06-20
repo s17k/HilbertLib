@@ -181,9 +181,9 @@ int* how_many_used // how many used is not filled
 	int i = 0;
 	int suma;
 	hilpos_t * sendBuff = calloc(2,sizeof(hilpos_t));
-	while(bsleft < bsright) {
+	while(bsleft+HILPOS_MARGIN < bsright) {
 		//printf("bsleft : %d, bsright %d\n",bsleft,bsright);
-		bsmiddle = (bsleft + bsright + 1)/2;			
+		bsmiddle = (bsleft + bsright + HILPOS_BS_1)/HILPOS_BS_2;			
 		sendBuff[0] = a;
 		sendBuff[1] = bsmiddle;
 		//printf("Wysyłam parę (%d,%d)\n",a,bsmiddle);
