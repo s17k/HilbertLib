@@ -3,6 +3,14 @@
 typedef unsigned int coord_t;
 #define MPI_COORD_T MPI_UNSIGNED 
 #define COORD_T_MAX_VALUE ((coord_t)1<<31)
+typedef unsigned int hilpos_t;
+#define MPI_HILPOS_T MPI_UNSIGNED
+#define HILPOS_T_MAX_VALUE ((hilpos_t)1<<31)
+#define HILPOS_EPS 1
+typedef unsigned int id_t;
+#define MPI_ID_T MPI_UNSIGNED
+typedef unsigned int amount_t;
+
 // coordinates(X) ---> HilbertLibPosition(X) (changes X from coordinates in n dimensions to HilbertLibPosition)
 void AxestoTranspose( coord_t* X, int b, int n) { // position,bits,dimensions
 	coord_t M = 1 << (b-1), P, Q, t;
