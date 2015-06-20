@@ -7,6 +7,12 @@ typedef unsigned int hilpos_t;
 #define MPI_HILPOS_T MPI_UNSIGNED
 #define HILPOS_T_MAX_VALUE ((hilpos_t)1<<31)
 #define HILPOS_EPS 1
+//change to 2.0
+#define HILPOS_BS_2 2
+//change to 1.0
+#define HILPOS_BS_1 1 
+//change to HILPOS_EPS
+#define HILPOS_MARGIN 0
 typedef unsigned int id_t;
 #define MPI_ID_T MPI_UNSIGNED
 typedef unsigned int amount_t;
