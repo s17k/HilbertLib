@@ -1,8 +1,12 @@
 #include<string.h>
 #include<stdlib.h>
+#include<stdio.h>
 typedef unsigned int coord_t;
 #define MPI_COORD_T MPI_UNSIGNED 
 #define COORD_T_MAX_VALUE ((coord_t)1<<31)
+
+//unsigned int hilpos_t
+/*
 typedef unsigned int hilpos_t;
 #define MPI_HILPOS_T MPI_UNSIGNED
 #define HILPOS_T_MAX_VALUE ((hilpos_t)1<<31)
@@ -12,7 +16,18 @@ typedef unsigned int hilpos_t;
 //change to 1.0
 #define HILPOS_BS_1 1 
 //change to HILPOS_EPS
-#define HILPOS_MARGIN 0
+#define HILPOS_MARGIN 0*/
+
+//double hilpos_t
+typedef double hilpos_t;
+#define MPI_HILPOS_T MPI_DOUBLE
+#define HILPOS_T_MAX_VALUE ((hilpos_t)1e200)
+#define HILPOS_EPS ((hilpos_t)(1e-15))
+#define HILPOS_BS_1 ((hilpos_t)0)
+#define HILPOS_BS_2 ((hilpos_t)2)
+#define HILPOS_MARGIN ((hilpos_t)(1e-1))
+
+
 typedef unsigned int id_t;
 #define MPI_ID_T MPI_UNSIGNED
 typedef unsigned int amount_t;
@@ -53,6 +68,25 @@ void AxestoTranspose( coord_t* X, int b, int n) { // position,bits,dimensions
 	}
 	memcpy(X,Y,sizeof(Y));
 	free(Y);
+}
+
+hilpos_t GetHCoordinate( coord_t* Y, int b, int n) {
+	coord_t *X = calloc(n,sizeof(coord_t));
+	memcpy(X,Y,sizeof(coord_t)*n);
+	AxestoTranspose(X,b,n);
+	int i;
+	hilpos_t res = 0;
+	hilpos_t akt_val = 1;
+	for(i=n-1;i>=0;i--) {
+		res += akt_val * X[i];
+		akt_val *= (hilpos_t)(1<<b);
+	}
+	/*for(i=0;i<n;i++) {
+		printf("%d ",Y[i]);
+	}
+	printf("%e\n",res);*/
+	free(X);
+	return res;
 }
 
 /*typedef HilbertLibPosition coord_t*;

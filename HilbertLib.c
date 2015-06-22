@@ -6,6 +6,7 @@
 #include <time.h>
 #include "AxesTranspose.c"
 #include "BinsBox.c"
+#include <assert.h>
 #include "MDPoint.c"
 
 MDPoint* HomePtr;
@@ -34,22 +35,16 @@ int b,// precision (input)
 int n // dimensions (input)
 ) 
 { 	
-	MDPoint* res = calloc(Datasize,sizeof(MDPoint)); // miejsce do operowania AxestoTranspose
 	int i=0;
+	hilpos_t* first_elem = calloc(Datasize,sizeof(hilpos_t));
 	for(i=0;i<Datasize;i++) { // saving i-th Hilbert Coordinates in res[i].coords[0]
-		make_MDPoint(&res[i], n);
-		memcpy(res[i].coordinates,X[i].coordinates,sizeof(coord_t)*n);
-		//printf("Znajduje H dla %d,",i);
-		AxestoTranspose(res[i].coordinates,b,n);
-		//printf(" Wyszlo mi %d\n",res[i].coordinates[0]);
+		first_elem[i] = 
+			GetHCoordinate(X[i].coordinates,b,n);
 	}
 	MDPoint* *ptrs = calloc(Datasize,sizeof(MDPoint*));
 	for(i=0;i<Datasize;i++) 
 		ptrs[i] = &X[i];
 	HomePtr = X;
-	hilpos_t* first_elem = calloc(Datasize,sizeof(hilpos_t));
-	for(i=0;i<Datasize;i++) 
-		first_elem[i] = (hilpos_t)res[i].coordinates[0];
 	HilbertPos = first_elem;
 	qsort(ptrs,Datasize,sizeof(MDPoint*),HilbertLibCurveSortComparator);
 	*HCoordinates = calloc(Datasize,sizeof(hilpos_t));
@@ -61,7 +56,6 @@ int n // dimensions (input)
 	}
 	//free(X);
 	free(ptrs);
-	free(res);
 	free(first_elem);
 	
 }
@@ -143,6 +137,7 @@ int HilbertLibGetNOfParticles(
 	}
 	*MIN = MinRes;
 	*MAX = MaxRes;
+        //printf("MIN %f MAX %f\n",*MIN,*MAX);
 	free(sendBuf);
 	free(recvBuf);
         return suma;
@@ -163,9 +158,10 @@ int* how_many_used // how many used is not filled
 	int i = 0;
 	int suma;
 	hilpos_t * sendBuff = calloc(2,sizeof(hilpos_t));
-	while(bsleft+HILPOS_MARGIN < bsright) {
-		//printf("bsleft : %d, bsright %d\n",bsleft,bsright);
+	while(bsright/bsleft > 1 + HILPOS_EPS) { // CHANGE FOR UNSIGNED INTS
+                
 		bsmiddle = (bsleft + bsright + HILPOS_BS_1)/HILPOS_BS_2;			
+                //printf("bsleft : %f, bsright %f, bsmiddle %f\n",bsleft,bsright,bsmiddle);
 		sendBuff[0] = a;
 		sendBuff[1] = bsmiddle;
 		//printf("Wysyłam parę (%d,%d)\n",a,bsmiddle);
@@ -184,7 +180,7 @@ int* how_many_used // how many used is not filled
 		}
 		//printf("na tym przedziale jest %d\n",suma);
 		if(suma > particlesRate) {
-			bsright = bsmiddle-1;
+			bsright = bsmiddle-HILPOS_EPS;
 		} else {
 			bsleft = bsmiddle;
 		}
@@ -386,8 +382,9 @@ void HilbertLibRelocate(
 			sendBuf[wskBuf] = Data[i].coordinates[j];
 			wskBuf++;
 		}
-                while(HCoordinates[i] > Boundaries[wsk]) {
+                while(Boundaries[wsk]/HCoordinates[i] < 1 - HILPOS_EPS*2) { // Change with Unsigned
                     wsk++;
+                    assert(wsk < ProcessCount);
                 }
                 sendAmounts[wsk]++;
                     
@@ -529,8 +526,9 @@ void HilbertLibPartition(
 		);
 		boundaries = HilbertLibRecvBoundariesFromRoot(size,RootRank);
 	}
-	/*for(i=0;i<size;i++) {
-		printf("boundaries[%d] = %d\n",i,boundaries[i]);
+	/*if(rank == 0)
+	for(i=0;i<size;i++) {
+		printf("boundaries[%d] = %e\n",i,boundaries[i]);
 	}*/
 	
 	MDPoint* NewData;
@@ -561,20 +559,19 @@ int main (int argc, char *argv[]) {
 	int rank,size;
 	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 	MPI_Comm_size(MPI_COMM_WORLD, &size);
-	printf("Witaj, jestem procesem # %d\n",rank);
 	#define ROOT 0
-	#define DIMENSIONS 4
-	#define BITS_PRECISION 5
+	#define DIMENSIONS 50
+	#define BITS_PRECISION 20
 	
 	// Random Input Generation
 	srand(rank+size);
-	int MyPointsCount = rand()%10000+1;
+	int MyPointsCount = rand()%40+1;
 	int i,j;
 	MDPoint *MyPoints = calloc(MyPointsCount,sizeof(MDPoint));
 	for(i=0;i<MyPointsCount;i++) {
 		make_MDPoint(&MyPoints[i],DIMENSIONS);
 		for(j=0;j<DIMENSIONS;j++) {
-			MyPoints[i].coordinates[j] = rand()%(1<<BITS_PRECISION);
+			MyPoints[i].coordinates[j] = rand()%(1<<BITS_PRECISION-1);
 		}
 	}
 	
@@ -602,15 +599,14 @@ int main (int argc, char *argv[]) {
 		&NewDataCount
 	);
        
+       	printf("%d\n",NewDataCount);
 	for(i=0;i<NewDataCount;i++) {
-                printf("Jestem %d i mam punkt : ",rank);
-                for(j=0;j<DIMENSIONS;j++) 
+                /*for(j=0;j<DIMENSIONS;j++) 
                     printf("%d ", NewData[i].coordinates[j]);
-                printf("\n");
+                printf("%d \n",rank);*/
 		MDPointRemove(&NewData[i]);
 	}
 	free(NewData);
-	printf("Żegnaj, jestem procesem #%d\n",rank);
 	MPI_Finalize();
 	return 0;
 }
