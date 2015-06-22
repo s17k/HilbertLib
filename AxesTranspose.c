@@ -33,7 +33,7 @@ typedef unsigned int id_t;
 typedef unsigned int amount_t;
 
 // coordinates(X) ---> HilbertLibPosition(X) (changes X from coordinates in n dimensions to HilbertLibPosition)
-void AxestoTranspose( coord_t* X, int b, int n) { // position,bits,dimensions
+hilpos_t GetHCoordinate( coord_t* X, coord_t *Y, int b, int n) { // position,bits,dimensions, X is destroyed, Y is used
 	coord_t M = 1 << (b-1), P, Q, t;
 	int i,j;
 	for(Q=M;Q>1;Q>>=1) {
@@ -51,10 +51,11 @@ void AxestoTranspose( coord_t* X, int b, int n) { // position,bits,dimensions
 		if(X[n-1] & Q)
 			t ^= Q-1;
 	for(i=0;i<n;i++) X[i]^=t;
-	coord_t *Y = calloc(n,sizeof(coord_t));
+	//coord_t *Y = calloc(n,sizeof(coord_t));
 	int nob = sizeof(coord_t)*8;
 	int wsk = 0;
 	int wskbits =0;
+	Y[0] = 0;
 	for(i=b-1;i>=0;i--) {
 		for(j=0;j<n;j++) {
 			Y[wsk] *= 2;
@@ -63,30 +64,20 @@ void AxestoTranspose( coord_t* X, int b, int n) { // position,bits,dimensions
 			if(wskbits == nob) {
 				wskbits = 0;
 				wsk++;
+				Y[wsk] = 0;
 			}
 		}
 	}
-	memcpy(X,Y,sizeof(Y));
-	free(Y);
-}
-
-hilpos_t GetHCoordinate( coord_t* Y, int b, int n) {
-	coord_t *X = calloc(n,sizeof(coord_t));
-	memcpy(X,Y,sizeof(coord_t)*n);
-	AxestoTranspose(X,b,n);
-	int i;
+	
 	hilpos_t res = 0;
 	hilpos_t akt_val = 1;
 	for(i=n-1;i>=0;i--) {
-		res += akt_val * X[i];
+		res += akt_val * Y[i];
 		akt_val *= (hilpos_t)(1<<b);
 	}
-	/*for(i=0;i<n;i++) {
-		printf("%d ",Y[i]);
-	}
-	printf("%e\n",res);*/
-	free(X);
+
 	return res;
+	//free(Y);
 }
 
 /*typedef HilbertLibPosition coord_t*;

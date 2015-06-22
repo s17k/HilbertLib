@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
-#include <mpi.h>
+#include <mpi/mpi.h>
 #include <time.h>
 #include "AxesTranspose.c"
 #include "BinsBox.c"
@@ -36,10 +36,11 @@ int n // dimensions (input)
 ) 
 { 	
 	int i=0;
+	coord_t* tmp = calloc(n,sizeof(coord_t));
 	hilpos_t* first_elem = calloc(Datasize,sizeof(hilpos_t));
 	for(i=0;i<Datasize;i++) { // saving i-th Hilbert Coordinates in res[i].coords[0]
 		first_elem[i] = 
-			GetHCoordinate(X[i].coordinates,b,n);
+			GetHCoordinate(X[i].coordinates,tmp,b,n);
 	}
 	MDPoint* *ptrs = calloc(Datasize,sizeof(MDPoint*));
 	for(i=0;i<Datasize;i++) 
@@ -173,11 +174,12 @@ int* how_many_used // how many used is not filled
 			sendBuff[1]
 		);
 
-		MPI_Gather(&singlebuff,1,MPI_INT,hm,1,MPI_INT,RootRank,MPI_COMM_WORLD);
+		MPI_Reduce(&singlebuff,&suma,1,MPI_INT,MPI_SUM,RootRank,MPI_COMM_WORLD);
+		/*MPI_Gather(&singlebuff,1,MPI_INT,hm,1,MPI_INT,RootRank,MPI_COMM_WORLD);
 		suma = 0;
 		for(i=0;i<nodesCount;i++) {
 			suma += hm[i];		
-		}
+		}*/
 		//printf("na tym przedziale jest %d\n",suma);
 		if(suma > particlesRate) {
 			bsright = bsmiddle-HILPOS_EPS;
@@ -196,11 +198,13 @@ int* how_many_used // how many used is not filled
 		sendBuff[0],
 		sendBuff[1]
 	);
-	MPI_Gather(&singlebuff,1,MPI_INT,hm,1,MPI_INT,RootRank,MPI_COMM_WORLD);
+
+	MPI_Reduce(&singlebuff,&suma,1,MPI_INT,MPI_SUM,RootRank,MPI_COMM_WORLD);
+	/*MPI_Gather(&singlebuff,1,MPI_INT,hm,1,MPI_INT,RootRank,MPI_COMM_WORLD);
 	suma = 0;
 	for(i=0;i<nodesCount;i++) {
 		suma += hm[i];
-	}
+	}*/
 	(*how_many_used) = suma;
 	free(sendBuff);
 	free(hm);
@@ -305,16 +309,16 @@ void HilbertLibNodeMakeBins(hilpos_t *MyHCoordinates, size_t MyParticlesCount, i
 			recvBuff[1]
 		);
 		//printf("wiec odpowiadam %d\n",sendbuf);
-		MPI_Gather(
+		MPI_Reduce(
 			&sendbuf,
+			NULL,
 			1,
 			MPI_INT,
-			NULL,
-			0,
-			NULL,
+			MPI_SUM,
 			RootRank,
 			MPI_COMM_WORLD
-		);		
+		);
+		//MPI_Gather(&sendbuf,1,MPI_INT,NULL,0,0,RootRank,MPI_COMM_WORLD);
 	}
 	free(recvBuff);
 }
@@ -560,12 +564,12 @@ int main (int argc, char *argv[]) {
 	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 	MPI_Comm_size(MPI_COMM_WORLD, &size);
 	#define ROOT 0
-	#define DIMENSIONS 50
-	#define BITS_PRECISION 20
+	#define DIMENSIONS 10
+	#define BITS_PRECISION 25
 	
 	// Random Input Generation
 	srand(rank+size);
-	int MyPointsCount = rand()%40+1;
+	int MyPointsCount = 30000;
 	int i,j;
 	MDPoint *MyPoints = calloc(MyPointsCount,sizeof(MDPoint));
 	for(i=0;i<MyPointsCount;i++) {
