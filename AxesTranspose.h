@@ -2,8 +2,7 @@
 #define HLAXESTRANSPOSE_H_INCLUDED
 
 typedef unsigned int coord_t;
-#define MPI_COORD_T MPI_UNSIGNED 
-#define COORD_T_MAX_VALUE ((coord_t)1<<31)
+#define MPI_COORD_T MPI_UNSIGNED_LONG_LONG
 
 //unsigned int hilpos_t
 /*
