@@ -3,7 +3,7 @@
 #define MDPOINT_H_INCLUDED
 struct MDPoint {
         coord_t* coordinates;
-        id_t own_data_id;
+        tag_t own_data_id;
 };
 
 typedef struct MDPoint MDPoint;

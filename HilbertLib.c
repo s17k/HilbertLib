@@ -35,7 +35,12 @@ int Datasize, // |data| - number of particles in this node (input)
 int b,// precision (input)
 int n // dimensions (input)
 ) 
-{ 	
+{
+	if(Datasize == 0) {
+		(*SortedData) = NULL;
+		(*HCoordinates) = NULL;
+		return;
+	}
 	int i=0;
 	coord_t* tmp = calloc(n,sizeof(coord_t));
 	coord_t* tmp2 = calloc(n,sizeof(coord_t));
@@ -70,7 +75,7 @@ int HilbertLibNodeBinSearch(
 hilpos_t *HCoordinates, 
 int Datasize, 
 hilpos_t Right) 
-{ 	
+{
 	// binary search left,right,middle
 	int bsleft = 0, bsright = Datasize, bsmiddle;  	
 	// properly it is binsearching the first node which have hcoordinate > Right
@@ -87,6 +92,8 @@ hilpos_t Right)
 
 // counting all nodes(hc) which satisfy : Left < hc <= Right [Node]
 int HilbertLibNodeHowMany(hilpos_t *HCoordinates, int Datasize, hilpos_t Left, hilpos_t Right) { 
+	if(Datasize == 0)
+		return 0;
 	return 
 		HilbertLibNodeBinSearch(HCoordinates,Datasize,Right) - 
 		HilbertLibNodeBinSearch(HCoordinates,Datasize,Left);
@@ -98,6 +105,7 @@ void HilbertLibNodeGetMINMAX(hilpos_t* HCoordinates, int Datasize, hilpos_t *MIN
 	int i;
 	(*MIN) = HILPOS_T_MAX_VALUE;
 	(*MAX) = 0;
+	if(Datasize == 0) return;
 	for(i = 0; i < Datasize;i++) {
 		if(HCoordinates[i] < *MIN)
 			*MIN = HCoordinates[i];
@@ -368,6 +376,7 @@ MDPoint getMDPointFromRawBuffer(coord_t* Place, int Dimensions) { // can be easi
 
 // Relocate the points, according to Hilbert Curve
 #define SENDING_TAG1  111
+#define SENDING_TAG2  222
 void HilbertLibRelocate(
 	MDPoint *Data,
 	hilpos_t *HCoordinates,
@@ -384,12 +393,14 @@ void HilbertLibRelocate(
 	int wsk = 0;
 	int wskBuf = 0;
 	int j;
+	tag_t* tagSendBuf = calloc(MyPointsCount,sizeof(tag_t));
 	coord_t* sendBuf = calloc(MyPointsCount*Dimensions,sizeof(coord_t));
 	for(i=0;i<MyPointsCount;i++) {
 		for(j=0;j<Dimensions;j++) {
 			sendBuf[wskBuf] = Data[i].coordinates[j];
 			wskBuf++;
 		}
+		tagSendBuf[i] = Data[i].own_data_id;
                 while(Boundaries[wsk]/HCoordinates[i] < 1 - HILPOS_EPS*2) { // Change with Unsigned
                     wsk++;
                     assert(wsk < ProcessCount);
@@ -424,6 +435,15 @@ void HilbertLibRelocate(
 			MPI_COMM_WORLD,
 			&requestNull
 		);
+		MPI_Isend(
+			tagSendBuf + (pref/Dimensions),
+			sendAmounts[i],
+			MPI_TAG_T,
+			i,
+			SENDING_TAG2,
+			MPI_COMM_WORLD,
+			&requestNull
+		);
 
 		pref += sendAmounts[i]* Dimensions;
 	}
@@ -436,14 +456,16 @@ void HilbertLibRelocate(
                 if(recvAmounts[i] == 0)
                     zeros += 1;
 	}
-        if(ProcessCount != zeros)
-            requestList = calloc(ProcessCount-zeros,sizeof(MPI_Request));
+	int actual_size = (ProcessCount - zeros)*2;
+        if(actual_size > 0)
+            requestList = calloc(actual_size,sizeof(MPI_Request));
         else   
             requestList = NULL;
         
 	*NewDataCount = myNewPointsSize;
 	(*NewData) = calloc(myNewPointsSize,sizeof(MDPoint));
 	coord_t* recvNewDataBuf = calloc(myNewPointsSize*Dimensions,sizeof(coord_t));
+	tag_t* recvTagTBuf = calloc(myNewPointsSize,sizeof(tag_t));
 	pref = 0;
         unsigned int reqptr = 0;
 	for(i=0;i<ProcessCount;i++) {
@@ -456,7 +478,16 @@ void HilbertLibRelocate(
 			i,
 			SENDING_TAG1,
 			MPI_COMM_WORLD,
-			&requestList[reqptr]
+			&requestList[reqptr*2]
+		);
+		MPI_Irecv(
+			recvTagTBuf + (pref/Dimensions),
+			recvAmounts[i],
+			MPI_TAG_T,
+			i,
+			SENDING_TAG2,
+			MPI_COMM_WORLD,
+			&requestList[reqptr*2+1]
 		);
                 reqptr++;
 			
@@ -464,20 +495,23 @@ void HilbertLibRelocate(
 	}
 	// Waiting
         if(ProcessCount-zeros != 0)
-            MPI_Waitall(ProcessCount-zeros,requestList,MPI_STATUSES_IGNORE);
+            MPI_Waitall(actual_size,requestList,MPI_STATUSES_IGNORE);
         int li =0;
 	for(i=0;i<ProcessCount;i++) {
 		for(j=0;j<recvAmounts[i];j++) {
 			make_MDPoint(&((*NewData)[li]),Dimensions);
 				//getMDPointFromRawBuffer(recvNewDataBuf+li*Dimensions,Dimensions);
                         memcpy(((*NewData)[li]).coordinates,recvNewDataBuf+(li*Dimensions),sizeof(coord_t)*Dimensions);
+			(*NewData)[li].own_data_id = recvTagTBuf[li];
                         li+=1;          
 		}
 	}
 	free(sendBuf);
+	free(tagSendBuf);
 	free(recvAmounts);
 	free(requestList);
 	free(recvNewDataBuf);
+	free(recvTagTBuf);
 }
 
 void HilbertLibPartition(

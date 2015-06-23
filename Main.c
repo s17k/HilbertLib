@@ -10,13 +10,13 @@ int main (int argc, char *argv[]) {
 	MPI_Comm_size(MPI_COMM_WORLD, &size);
 	#define ROOT 0
 	#define DIMENSIONS 3
-	#define BITS_PRECISION 25
+	#define BITS_PRECISION 30
 	
 	MDPoint * MyPoints;
 	int MyPointsCount;
 	int i,j;
 	// Random Input Generation
-	if(rank != 0) {
+	if(0 | (rank != 0)) {
 		MyPointsCount = 1;
 		srand(rank+size);
 		MyPoints = calloc(MyPointsCount,sizeof(MDPoint));
@@ -25,6 +25,7 @@ int main (int argc, char *argv[]) {
 			for(j=0;j<DIMENSIONS;j++) {
 				MyPoints[i].coordinates[j] = rand()%(1<<BITS_PRECISION-1);
 			}
+			MyPoints[i].own_data_id = MyPoints[i].coordinates[0]^17;
 		}
 	} else {
 		MyPointsCount = 11659;
@@ -60,11 +61,13 @@ int main (int argc, char *argv[]) {
 		&NewData,
 		&NewDataCount
 	);
-	printf("%d\n",NewDataCount);
+	//printf("%d\n",NewDataCount);
 	for(i=0;i<NewDataCount;i++) {
-		/*for(j=0;j<DIMENSIONS;j++)
+		for(j=0;j<DIMENSIONS;j++)
 			printf("%d ", NewData[i].coordinates[j]);
-		printf("%d \n",rank);*/
+		//printf("data_id = %d",NewData[i].own_data_id);
+		printf("%d", rank);
+		printf("\n");
 		MDPointRemove(&NewData[i]);
 	}
 	free(NewData);

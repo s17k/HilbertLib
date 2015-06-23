@@ -28,8 +28,8 @@ typedef double hilpos_t;
 #define HILPOS_MARGIN ((hilpos_t)(1e-1))
 
 
-typedef unsigned int id_t;
-#define MPI_ID_T MPI_UNSIGNED
+typedef unsigned int tag_t;
+#define MPI_TAG_T MPI_UNSIGNED
 typedef unsigned int amount_t;
 
 hilpos_t GetHCoordinate( coord_t *, coord_t *, coord_t*, int, int);
