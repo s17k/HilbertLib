@@ -4,10 +4,11 @@
 #include <stdbool.h>
 #include <mpi/mpi.h>
 #include <time.h>
-#include "AxesTranspose.c"
+#include "AxesTranspose.h"
 #include "BinsBox.c"
+#include "HilbertLib.h"
 #include <assert.h>
-#include "MDPoint.c"
+#include "MDPoint.h"
 
 MDPoint* HomePtr;
 hilpos_t *HilbertPos;
@@ -37,11 +38,14 @@ int n // dimensions (input)
 { 	
 	int i=0;
 	coord_t* tmp = calloc(n,sizeof(coord_t));
+	coord_t* tmp2 = calloc(n,sizeof(coord_t));
 	hilpos_t* first_elem = calloc(Datasize,sizeof(hilpos_t));
 	for(i=0;i<Datasize;i++) { // saving i-th Hilbert Coordinates in res[i].coords[0]
 		first_elem[i] = 
-			GetHCoordinate(X[i].coordinates,tmp,b,n);
+			GetHCoordinate(X[i].coordinates,tmp2,tmp,b,n);
 	}
+	free(tmp);
+	free(tmp2);
 	MDPoint* *ptrs = calloc(Datasize,sizeof(MDPoint*));
 	for(i=0;i<Datasize;i++) 
 		ptrs[i] = &X[i];
@@ -502,11 +506,11 @@ void HilbertLibPartition(
 	//Printing Sorted Points, and their HCoordinates
 	int i,j;
 	/*for(i=0;i<MyPointsCount;i++) {
-		printf("Punkt #%d : ",i);
+		//printf("Punkt #%d : ",i);
 		for(j=0;j<Dimensions;j++) {
 			printf("%d ", SortedData[i].coordinates[j]);
 		}
-		printf("  | H : %d",HCoordinates[i]);
+		//printf("  | H : %d",HCoordinates[i]);
 		printf("\n");
 
 	}*/
@@ -555,64 +559,6 @@ void HilbertLibPartition(
 	free(SortedData);
 	free(HCoordinates);
 	free(boundaries);
-}
-
-int main (int argc, char *argv[]) {
-	// Initialization
-	MPI_Init(&argc, &argv);
-	int rank,size;
-	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-	MPI_Comm_size(MPI_COMM_WORLD, &size);
-	#define ROOT 0
-	#define DIMENSIONS 10
-	#define BITS_PRECISION 25
-	
-	// Random Input Generation
-	srand(rank+size);
-	int MyPointsCount = 30000;
-	int i,j;
-	MDPoint *MyPoints = calloc(MyPointsCount,sizeof(MDPoint));
-	for(i=0;i<MyPointsCount;i++) {
-		make_MDPoint(&MyPoints[i],DIMENSIONS);
-		for(j=0;j<DIMENSIONS;j++) {
-			MyPoints[i].coordinates[j] = rand()%(1<<BITS_PRECISION-1);
-		}
-	}
-	
-	//Printing genereated points
-	/*for(i=0;i<MyPointsCount;i++) {
-		printf("Punkt #%d : ",i);
-		for(j=0;j<DIMENSIONS;j++) {
-			printf("%u ", MyPoints[i].coordinates[j]);
-		}
-		printf("\n");
-
-	}*/
-	MDPoint *NewData = NULL;
-	int NewDataCount = 0;
-
-	HilbertLibPartition( // MyPoints is freed
-		MyPoints,
-		MyPointsCount,
-		ROOT,
-		DIMENSIONS,
-		BITS_PRECISION,
-		rank,
-		size,
-		&NewData,
-		&NewDataCount
-	);
-       
-       	printf("%d\n",NewDataCount);
-	for(i=0;i<NewDataCount;i++) {
-                /*for(j=0;j<DIMENSIONS;j++) 
-                    printf("%d ", NewData[i].coordinates[j]);
-                printf("%d \n",rank);*/
-		MDPointRemove(&NewData[i]);
-	}
-	free(NewData);
-	MPI_Finalize();
-	return 0;
 }
 
 

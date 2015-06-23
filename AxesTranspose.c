@@ -1,39 +1,10 @@
 #include<string.h>
 #include<stdlib.h>
-#include<stdio.h>
-typedef unsigned int coord_t;
-#define MPI_COORD_T MPI_UNSIGNED 
-#define COORD_T_MAX_VALUE ((coord_t)1<<31)
-
-//unsigned int hilpos_t
-/*
-typedef unsigned int hilpos_t;
-#define MPI_HILPOS_T MPI_UNSIGNED
-#define HILPOS_T_MAX_VALUE ((hilpos_t)1<<31)
-#define HILPOS_EPS 1
-//change to 2.0
-#define HILPOS_BS_2 2
-//change to 1.0
-#define HILPOS_BS_1 1 
-//change to HILPOS_EPS
-#define HILPOS_MARGIN 0*/
-
-//double hilpos_t
-typedef double hilpos_t;
-#define MPI_HILPOS_T MPI_DOUBLE
-#define HILPOS_T_MAX_VALUE ((hilpos_t)1e200)
-#define HILPOS_EPS ((hilpos_t)(1e-15))
-#define HILPOS_BS_1 ((hilpos_t)0)
-#define HILPOS_BS_2 ((hilpos_t)2)
-#define HILPOS_MARGIN ((hilpos_t)(1e-1))
-
-
-typedef unsigned int id_t;
-#define MPI_ID_T MPI_UNSIGNED
-typedef unsigned int amount_t;
+#include "AxesTranspose.h"
 
 // coordinates(X) ---> HilbertLibPosition(X) (changes X from coordinates in n dimensions to HilbertLibPosition)
-hilpos_t GetHCoordinate( coord_t* X, coord_t *Y, int b, int n) { // position,bits,dimensions, X is destroyed, Y is used
+hilpos_t GetHCoordinate( coord_t* Z, coord_t *X, coord_t *Y, int b, int n) { // position,bits,dimensions, Z,Y is used
+	memcpy(X,Z,sizeof(coord_t)*n);
 	coord_t M = 1 << (b-1), P, Q, t;
 	int i,j;
 	for(Q=M;Q>1;Q>>=1) {
@@ -77,19 +48,4 @@ hilpos_t GetHCoordinate( coord_t* X, coord_t *Y, int b, int n) { // position,bit
 	}
 
 	return res;
-	//free(Y);
 }
-
-/*typedef HilbertLibPosition coord_t*;
-int HilbertLibPositionComparator(const HilbertLibPosition *A, const HilbertLibPosition *B, int size) { // maybe inlined
-	int r = memcmp(*A,*B,size);
-	if(r <= 0) return 1;
-	else return 0;
-}
-HilbertLibPosition* makeHilbertLibPosition(int dimensions) {
-	HilbertLibPosition* res = calloc(dimensions,sizeof(coord_t);
-	return res;
-}
-void HilbertLibPositionFree(HilbertLibPosition *X) {
-	free(X);
-}*/

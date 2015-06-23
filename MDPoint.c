@@ -1,10 +1,6 @@
-struct MDPoint {
-	coord_t* coordinates;
-	id_t own_data_id;
-};
-
-
-typedef struct MDPoint MDPoint;
+#include "AxesTranspose.h"
+#include "MDPoint.h"
+#include <stdlib.h>
 
 void make_MDPoint(MDPoint *X, int dimensions) {
 	X->coordinates = calloc(dimensions, sizeof(coord_t));
