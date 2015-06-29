@@ -9,13 +9,13 @@ void makePtrVector(PtrVector *vec) {
 
 
 void PtrVectorDoubleCapacity(PtrVector *vec) {
-	vec->arr = (void**)realloc(vec->arr, (vec->capacity)*2);
+	vec->arr = (void**)realloc(vec->arr, (vec->capacity)*2*sizeof(void*));
 	vec->capacity *= 2;
 }
 
 void PtrVectorPB(PtrVector *vec, void* el) {
 	if(vec->capacity == 0) {
-		vec->arr = (void**)realloc(vec->arr, 1);
+		vec->arr = (void**)realloc(vec->arr, 1*sizeof(void*));
 		vec->capacity = 1;
 	}
 	if(vec->size + 1 > vec->capacity) {

@@ -1,7 +1,9 @@
+#include<limits.h>
 #ifndef HLAXESTRANSPOSE_H_INCLUDED
 #define HLAXESTRANSPOSE_H_INCLUDED
 
 typedef unsigned int coord_t;
+#define COORD_T_MAX UINT_MAX
 #define MPI_COORD_T MPI_UNSIGNED_LONG_LONG
 
 //unsigned int hilpos_t

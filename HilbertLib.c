@@ -5,10 +5,10 @@
 #include <mpi/mpi.h>
 #include <time.h>
 #include "AxesTranspose.h"
-#include "BinsBox.c"
 #include "HilbertLib.h"
 #include <assert.h>
 #include "MDPoint.h"
+#include "MyTree.h"
 
 MDPoint* HomePtr;
 hilpos_t *HilbertPos;
@@ -593,6 +593,29 @@ void HilbertLibPartition(
 	free(SortedData);
 	free(HCoordinates);
 	free(boundaries);
+}
+
+MTNode* HilbertLibPrepareNodeForQueries (
+	MDPoint *Data,
+	int DataSize,
+	int Dimensions
+) {
+	MTNode* root = calloc(1,sizeof(MTNode));
+	makeMTNode(root,0,0);
+	MDPoint* *temp = calloc(DataSize,sizeof(MDPoint*));
+	int i;
+	for(i=0;i<DataSize;i++) {
+		temp[i] = &Data[i];
+	}
+	MTmake(
+		root,
+		temp,
+		DataSize,
+		Dimensions,
+		0
+	);
+	free(temp);
+	return root;
 }
 
 

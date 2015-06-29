@@ -1,4 +1,5 @@
 #include "MDPoint.h"
+#include "MyTree.h"
 #ifndef HILBERTLIBDEFINED
 #define HILBERTLIBDEFINED
 void HilbertLibPartition(
@@ -11,5 +12,10 @@ void HilbertLibPartition(
 	int size,
 	MDPoint * *NewDataPtr,
 	int * NewDataSize
+);
+MTNode* HilbertLibPrepareNodeForQueries(
+	MDPoint *Data,
+	int DataSize,
+	int Dimensions
 );
 #endif

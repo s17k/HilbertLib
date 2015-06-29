@@ -6,6 +6,10 @@ void makeMTNode(MTNode *foo, int dimdiv, coord_t val) {
 	foo->dim = dimdiv;
 	foo->val = val;
 	foo->left = NULL, foo->right = NULL;
+	#ifdef MYTREEMINMAX
+	foo->min = 0;
+	foo->max = COORD_T_MAX;
+	#endif
 }
 
 void coordinatesMINMAX(MDPoint* *Data, int DataSize, int Dim, coord_t *MIN, coord_t* MAX) {
@@ -29,18 +33,17 @@ void MTmake(
 	int Dimensions, 
 	int ActDim
 ) {
+	//printf("Wchodze do %p\n",Node);
 	int i;
-	printf("Data\n");
+	/*printf("Data\n");
 	for(i=0;i<DataSize;i++) {
 		printf("%d:  ",i);
 		int j;
 		for(j=0;j<Dimensions;j++) {
-			printf("%lld ", Data[i]->coordinates[j]);
+			printf("%d ", Data[i]->coordinates[j]);
 		}
 		printf("\n");
-	}	
-	if(DataSize == 0)
-		return;
+	}*/
 	if(DataSize == 1) {
 		Node->right = NULL;
 		Node->left = calloc(DataSize,sizeof(MDPoint*));
@@ -48,8 +51,13 @@ void MTmake(
 		for(i=0;i<DataSize;i++) 
 			((MDPoint**)(Node->left))[i] = Data[i];
 		Node->val = DataSize;
+	}
+	if(DataSize <= 1) {
+		free(Data);
 		return;
 	}
+
+			
 	MDPoint* *leftData = NULL;
 	MDPoint* *rightData = NULL; 
 	coord_t pivot;
@@ -64,6 +72,7 @@ void MTmake(
 			for(i=0;i<DataSize;i++) 
 				((MDPoint**)(Node->left))[i] = Data[i];
 			Node->val = DataSize;
+			free(Data);
 			return;
 		}
 		pivot = Data[rand()%DataSize]->coordinates[ActDim];
@@ -86,14 +95,30 @@ void MTmake(
 			break;		
 		}
 	}
-	printf("pivot : %d Node->dim = %d\n",pivot,ActDim);
+
+	//printf("pivot : %d Node->dim = %d\n",pivot,ActDim);
 	Node->dim = ActDim;
 	Node->val = pivot;
+
+
 	countSmaller = 0;
+	#ifdef MYTREEMINMAX
+	Node->min = Data[0]->coordinates[ActDim];
+	Node->max = Data[0]->coordinates[ActDim];
+	#endif
 	for(i=0;i<DataSize;i++) {
 		if(Data[i]->coordinates[ActDim] <= pivot) {
 			countSmaller++;
 		}
+		#ifdef MYTREEMINMAX
+		if(Data[i]->coordinates[ActDim] < Node->min) {
+			Node->min = Data[i]->coordinates[ActDim];
+		}
+		if(Data[i]->coordinates[ActDim] > Node->max) {
+			Node->max = Data[i]->coordinates[ActDim];
+		}	
+		#endif
+
 	}	
 	assert(countSmaller != 0);
 	assert((DataSize - countSmaller) != 0);
@@ -113,10 +138,9 @@ void MTmake(
 	Node->right = calloc(1,sizeof(MTNode));
 	makeMTNode(Node->left,0,0);
 	makeMTNode(Node->right,0,0);
+	free(Data);
 	MTmake(Node->left,leftData,countSmaller,Dimensions,(ActDim+1)%Dimensions);
-	free(leftData);
 	MTmake(Node->right,rightData,DataSize-countSmaller,Dimensions,(ActDim+1)%Dimensions);
-	free(rightData);
 }
 
 void MTDelete(MTNode *Node) {
@@ -126,7 +150,7 @@ void MTDelete(MTNode *Node) {
 		free(Node->left);
 		free(Node->right);
 	} else {
-		//free((MDPoint**)Node->left);
+		free((MDPoint**)Node->left);
 	}
 }
 
@@ -138,28 +162,27 @@ void MTQueryLocal(
 	int Dimensions
 ) {
 	if(Node->right == NULL) {
-		printf("Koncze\n");
 		if(Node->left == NULL) 
 			return;
 		int i;
-		printf("Znalazlem ");
 		for(i=0;i<Dimensions;i++) {
 			coord_t x = (((MDPoint**)(Node->left))[0])->coordinates[i];
 			if(x < LD[i] || x > RD[i])
 				return;
-			printf("%lld \n",x);
 		}
 		for(i=0;i<(Node->val);i++) {
 			PtrVectorPB(vec,((MDPoint**)Node->left)[i]);
 		}
 		return;
 	}
+	#ifdef MYTREEMINMAX
+	if(Node->max < LD[Node->dim] || Node->min > RD[Node->dim])
+		return;
+	#endif
 	if(LD[Node->dim] <= Node->val) {
-		printf("Szukam w lewej (%dta wspolredna jest <= %d\n",Node->dim,Node->val);
 		MTQueryLocal(Node->left,LD,RD,vec,Dimensions);
 	}
 	if(RD[Node->dim] > Node->val) {
-		printf("Szukam w prawej (%dta wspolredna jest > %d\n",Node->dim,Node->val);
 		MTQueryLocal(Node->right,LD,RD,vec,Dimensions);
 	}
 }
@@ -183,8 +206,8 @@ void MTQuery(
 	);
 	*Res = calloc(vec.size,sizeof(MDPoint*));
 	*ResSize = vec.size;
-	printf("vec.size = %d\n", vec.size) ;
 	memcpy(*Res,vec.arr,(*ResSize)*sizeof(MDPoint*));
+	PtrVectorDeallocate(&vec);
 }
 	
 
