@@ -2,13 +2,14 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
-#include <mpi/mpi.h>
+#include <mpi.h>
 #include <time.h>
 #include "AxesTranspose.h"
 #include "HilbertLib.h"
 #include <assert.h>
 #include "MDPoint.h"
 #include "MyTree.h"
+#include "Pair.h"
 
 MDPoint* HomePtr;
 hilpos_t *HilbertPos;
@@ -617,5 +618,243 @@ MTNode* HilbertLibPrepareNodeForQueries (
 	free(temp);
 	return root;
 }
+
+void exchangeNumberOfQueries (
+	int* *RecvSend,
+	int NumberOfProcesses
+) {
+	*RecvSend = calloc(NumberOfProcesses,sizeof(int));
+	MPI_Allgather(
+		&NumberOfProcesses,
+		1,
+		MPI_INT,
+		*(RecvSend),
+		1,
+		MPI_INT,
+		MPI_COMM_WORLD
+	);
+}
+
+char* sendQuery(
+	coord_t *LD,
+	coord_t *RD,
+	int NumberOfProcesses,
+	int Dimensions,
+	MDPoint* *Res, 
+	int* ResSize,
+	int MyRank,
+	int Counter, // unique (for query) number in <0,n-1>, where n is # of querie
+	MPI_Request* Request,
+	char* *BigBuff, // should be NULL on first query and freed after
+	int numberOfMyQueries
+) {
+	int number_of_bytes = sizeof(coord_t) * 2 * Dimensions + sizeof(int);
+	if(*BigBuff == NULL) {
+		*BigBuff = malloc(number_of_bytes * numberOfMyQueries * sizeof(coord_t));
+	}
+	char* buff = (*BigBuff) + Counter * number_of_bytes * sizeof(coord_t);
+
+	memcpy(buff,LD,sizeof(coord_t)*Dimensions);
+	memcpy(buff+sizeof(coord_t)*Dimensions,RD,sizeof(coord_t)*Dimensions);
+	memcpy(buff+sizeof(coord_t)*Dimensions*2,&Counter,sizeof(int));
+	
+	MPI_Ibcast(
+		buff,
+		number_of_bytes,
+		MPI_BYTE,
+		MyRank,
+		MPI_COMM_WORLD,
+		Request
+	);
+
+}
+
+void answerQueries(
+	int NumberOfProcesses,
+	int Dimensions,
+	MDPoint *Data,
+	int DataSize,
+	MTNode *Root,
+	int* RecvCount
+) {
+	int i,j,k,l;
+	int number_of_bytes = sizeof(coord_t) * 2 * Dimensions + sizeof(int);
+	char* buff = malloc(number_of_bytes);
+	int numberOfQueries = 0;
+	for(i=0;i<NumberOfProcesses;i++) 
+			numberOfQueries += RecvCount[i];
+	char* *results = calloc(numberOfQueries,sizeof(char*));
+	int* boolSend = calloc(DataSize,sizeof(int));
+	for(i=0;i<DataSize;i++)
+		boolSend[i] = -1;
+	char* *realBuffs = calloc(NumberOfProcesses,sizeof(char*));
+	int* *infoBuffs = calloc(NumberOfProcesses,sizeof(int*));
+	for(i=0;i<NumberOfProcesses;i++) {
+		if(RecvCount[i] == 0)
+				continue;
+		int allResults = 0; // counted twice 
+		int resultsCount = 0; // counted once
+		MDPoint** *Res = calloc(RecvCount[i],sizeof(MDPoint**));
+		int *resSize = calloc(RecvCount[i],sizeof(int));
+		int *queryRank = calloc(RecvCount[i],sizeof(int));
+		for(j=0;j<RecvCount[i];j++) {
+			MPI_Request req; 
+			MPI_Ibcast(
+				buff,
+				1,
+				MPI_INT,
+				i,
+				MPI_COMM_WORLD,
+				&req
+			);
+			MPI_Wait(&req,MPI_STATUS_IGNORE);
+			coord_t *LD = (coord_t*)buff;
+			coord_t *RD = (coord_t*)(buff + Dimensions*sizeof(coord_t));
+			queryRank[j] = *((int*)(buff + sizeof(coord_t) * Dimensions * 2));
+			MTQuery(
+				Root,
+				LD,
+				RD,
+				&Res[j],
+				&resSize[j],
+				Dimensions
+			);
+			allResults += resSize[j];
+			for(k=0;k<resSize[j];k++) {
+				if(boolSend[Res[j][k]-Data] != i) {
+					boolSend[Res[j][k]-Data] = i;
+					resultsCount++;
+				}
+			}
+		}
+		Pair *toSort = calloc(allResults,sizeof(Pair));
+		int* whoseIsThatPoint = calloc(allResults,sizeof(int)); // can be omitted
+		int wsk = 0;
+		for(j=0;j<RecvCount[i];j++) {
+			for(k=0;k<resSize[j];k++) {
+				make_Pair(&toSort[wsk], Res[j][k]-Data, queryRank[j]);
+				wsk+=1;
+			}
+		}
+		qsort(toSort, allResults, sizeof(Pair), PairComparator);
+		wsk = 0;
+		for(j=0;j<allResults;j++) {
+			whoseIsThatPoint[wsk] = toSort[j].b;
+			if(j == 0 || toSort[j].a != toSort[j-1].a)
+				whoseIsThatPoint[wsk] *= (-1);
+			wsk+=1;
+		}
+		free(Res);
+		int *info_buff = calloc(2,sizeof(int));
+		info_buff[0] = allResults;
+		info_buff[1] = resultsCount;
+		MPI_Isend(
+			info_buff,
+			2,
+			MPI_INT,
+			i,
+			765,
+			MPI_COMM_WORLD,
+			NULL
+		);
+		infoBuffs[i] = info_buff;
+		int real_buff_size = 
+			info_buff[0]*sizeof(int) + info_buff[1]*MDPOINT_FULL_SIZE(Dimensions);
+		char* real_buff = malloc(real_buff_size);
+		char* real_buff_ptr = real_buff;
+		realBuffs[i] = real_buff;
+		for(j=0;j<allResults;j++) {
+			if(j == allResults-1 || toSort[j].a != toSort[j+1].a) {
+				int offset = 
+					MDPointPack(
+						real_buff_ptr,
+						&Data[toSort[j].a],
+						Dimensions
+					);
+				real_buff_ptr += offset;
+
+			}
+		}
+		memcpy(real_buff,whoseIsThatPoint,sizeof(int)*allResults); 
+		MPI_Isend(
+			real_buff,
+			real_buff_size,
+			MPI_BYTE,
+			i,
+			766,
+			MPI_COMM_WORLD,
+			NULL
+		);
+		free(whoseIsThatPoint);		
+		free(queryRank);
+		for(j=0;j<RecvCount[i];j++) {
+			free(Res[j]);
+		}
+		free(Res);
+		free(resSize);
+	}
+	for(i=0;i<NumberOfProcesses;i++) {
+		if(RecvCount[i] == 0)
+			continue;
+		free(realBuffs[i]);
+		free(infoBuffs[i]);
+		free(results[i]);
+	}
+
+	free(buff);
+}
+
+void recvQueries( // Add MPI_TEST_SOME to fasten
+	MDPoint* *NewNeighbours,
+	int *NewNeighboursSize,
+	MDPoint** *Results,
+	int *ResultSize,
+	int Dimensions,
+	int ProcessCount
+) {
+	int i;
+	int* *cntBuffers = calloc(ProcessCount,sizeof(int*));
+	MPI_Request req;
+	for(i=0;i<ProcessCount;i++) {
+		cntBuffers[i] = calloc(2,sizeof(int));
+		int* cntBuf = cntBuffers[i];
+		MPI_Irecv(
+			cntBuf,
+			2,
+			MPI_INT,
+			i,
+			765,
+			MPI_COMM_WORLD,
+			&req
+		);
+		MPI_Wait(&req,MPI_STATUS_IGNORE);
+		*NewNeighboursSize += cntBuf[1];
+	}
+	for(i=0;i<ProcessCount;i++) {
+		int* cntBuf = cntBuffers[i];
+		int big_buff_size = 
+			cntBuf[0] * sizeof(int) + 
+			cntBuf[1] * MDPOINT_FULL_SIZE(Dimensions);
+		char* big_buff = malloc(big_buff_size);
+		MPI_Irecv(
+			big_buff,
+			big_buff_size,
+			MPI_BYTE,
+			i,
+			766,
+			MPI_COMM_WORLD,
+			&req
+		);
+		MPI_Wait(&req,MPI_STATUS_IGNORE);
+		int* whoseIsThatPoint = (int*)big_buff;
+		// next points from input 
+
+	}
+
+}
+
+
+
+
 
 
