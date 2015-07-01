@@ -493,17 +493,10 @@ void HilbertLibRelocate(
 			make_MDPoint(&((*NewData)[li]),Dimensions);
 				//getMDPointFromRawBuffer(recvNewDataBuf+li*Dimensions,Dimensions);
                         memcpy(((*NewData)[li]).coordinates,recvNewDataBuf+(li*Dimensions),sizeof(coord_t)*Dimensions);
-			((*NewData)[li]).own_data_id = recvTagTBuf[li];
+			(*NewData)[li].own_data_id = recvTagTBuf[li];
                         li+=1;          
 		}
 	}
-        for(i=0;i<(*NewDataCount);i++) {
-            printf("punkt numer %d : ",i);
-            for(j=0;j<Dimensions;j++) {
-                printf("%d ", ((*NewData)[i]).coordinates[j]);  
-            }
-            printf("\n");
-        }
 	free(sendBuf);
 	free(tagSendBuf);
 	free(recvAmounts);
