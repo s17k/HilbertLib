@@ -22,12 +22,11 @@ int MDPointPack(char *ptr, MDPoint *X, int dims) {
 	return sizeof(coord_t)*dims + sizeof(tag_t);
 }
 
-int MDPointUnpack(char *ptr, MDPoint* *Res, int dims) {
-	*Res = malloc(sizeof(MDPoint));
-	make_MDPoint(*Res,dims);
-	memcpy((*Res)->coordinates,ptr,sizeof(coord_t)*dims);
+int MDPointUnpack(char *ptr, MDPoint* Res, int dims) {
+	make_MDPoint(Res,dims);
+	memcpy(Res->coordinates,ptr,sizeof(coord_t)*dims);
 	ptr += dims*sizeof(coord_t);
-	memcpy(&((*Res)->own_data_id),ptr,sizeof(tag_t));
+	memcpy(&((Res)->own_data_id),ptr,sizeof(tag_t));
 	return dims*sizeof(coord_t) + sizeof(tag_t);
 }
 

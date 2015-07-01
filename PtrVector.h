@@ -10,5 +10,5 @@ typedef struct PtrVector PtrVector;
 
 void makePtrVector(PtrVector*);
 void PtrVectorPB(PtrVector*, void*);
-void PreVectorDeallocate(PtrVector*);
+void PtrVectorDeallocate(PtrVector*);
 #endif

@@ -675,7 +675,10 @@ void answerQueries(
 	MDPoint *Data,
 	int DataSize,
 	MTNode *Root,
-	int* RecvCount
+	int* RecvCount,
+	int MyRank,
+	MDPoint*** *SelfQueriesResult,
+	int* *SelfQueries
 ) {
 	int i,j,k,l;
 	int number_of_bytes = sizeof(coord_t) * 2 * Dimensions + sizeof(int);
@@ -775,7 +778,7 @@ void answerQueries(
 
 			}
 		}
-		memcpy(real_buff,whoseIsThatPoint,sizeof(int)*allResults); 
+		memcpy(real_buff_ptr,whoseIsThatPoint,sizeof(int)*allResults); 
 		MPI_Isend(
 			real_buff,
 			real_buff_size,
@@ -790,8 +793,10 @@ void answerQueries(
 		for(j=0;j<RecvCount[i];j++) {
 			free(Res[j]);
 		}
-		free(Res);
 		free(resSize);
+		if(i == MyRank) {
+			
+		}
 	}
 	for(i=0;i<NumberOfProcesses;i++) {
 		if(RecvCount[i] == 0)
@@ -804,15 +809,27 @@ void answerQueries(
 	free(buff);
 }
 
+int abs(int x) {
+	if(x < 0)
+		return -x;
+	else
+		return x;
+}
+
 void recvQueries( // Add MPI_TEST_SOME to fasten
 	MDPoint* *NewNeighbours,
 	int *NewNeighboursSize,
 	MDPoint** *Results,
-	int *ResultSize,
+	int* *ResultSize,
 	int Dimensions,
-	int ProcessCount
+	int ProcessCount,
+	int QueriesCount
 ) {
-	int i;
+	int i,j;
+	PtrVector *VecResults = calloc(QueriesCount,sizeof(PtrVector));
+	for(i=0;i<QueriesCount;i++) {
+		makePtrVector(&VecResults[i]);
+	}
 	int* *cntBuffers = calloc(ProcessCount,sizeof(int*));
 	MPI_Request req;
 	for(i=0;i<ProcessCount;i++) {
@@ -830,6 +847,9 @@ void recvQueries( // Add MPI_TEST_SOME to fasten
 		MPI_Wait(&req,MPI_STATUS_IGNORE);
 		*NewNeighboursSize += cntBuf[1];
 	}
+	(*NewNeighbours) = calloc(*NewNeighboursSize,sizeof(MDPoint));
+	int newNeighboursPtr = 0;
+	int lastNewNeighboursPtr = 0;
 	for(i=0;i<ProcessCount;i++) {
 		int* cntBuf = cntBuffers[i];
 		int big_buff_size = 
@@ -846,11 +866,40 @@ void recvQueries( // Add MPI_TEST_SOME to fasten
 			&req
 		);
 		MPI_Wait(&req,MPI_STATUS_IGNORE);
-		int* whoseIsThatPoint = (int*)big_buff;
+		char * big_buff_ptr = big_buff;
+		for(i=0;i<cntBuf[1];i++) {
+			int offset = 
+				MDPointUnpack(
+					big_buff_ptr,
+					&(((*NewNeighbours)[newNeighboursPtr])),
+					Dimensions
+				);
+			newNeighboursPtr += 1;
+			big_buff_ptr += offset;
+		}
+		
+		lastNewNeighboursPtr = newNeighboursPtr;
+		int pointPtr = -1;
+		for(j=0;j<cntBuf[0];j++) {
+			int actVal = *((int*)big_buff_ptr);
+			if(actVal < 0)
+				pointPtr += 1;
+			actVal = abs(actVal);
+			PtrVectorPB(&VecResults[actVal],&((*NewNeighbours)[lastNewNeighboursPtr + pointPtr]));
+			big_buff_ptr += sizeof(int);
+		}
+
+		free(big_buff);
+		free(cntBuf);
 		// next points from input 
-
 	}
-
+	free(cntBuffers);
+	free(VecResults);
+	for(i=0;i<QueriesCount;i++) {
+		(*Results)[i] = calloc(VecResults[i].size,sizeof(MDPoint*));
+		memcpy((*Results)[i], VecResults[i].arr, VecResults[i].size * sizeof(MDPoint*));
+		PtrVectorDeallocate(&VecResults[i]);
+	}
 }
 
 
