@@ -10,22 +10,24 @@ int main (int argc, char *argv[]) {
 	MPI_Comm_size(MPI_COMM_WORLD, &size);
 	#define ROOT 0
 	#define DIMENSIONS 3
-	#define BITS_PRECISION 30
+	#define BITS_PRECISION 20
 	
 	MDPoint * MyPoints;
 	int MyPointsCount;
 	int i,j;
 	// Random Input Generation
 	if(1 | (rank != 0)) {
-		MyPointsCount = 10000;
+		MyPointsCount = 3;
 		srand(rank+size);
 		MyPoints = calloc(MyPointsCount,sizeof(MDPoint));
 		for(i=0;i<MyPointsCount;i++) {
 			make_MDPoint(&MyPoints[i],DIMENSIONS);
 			for(j=0;j<DIMENSIONS;j++) {
-				MyPoints[i].coordinates[j] = rand()%(1ll<<BITS_PRECISION-1);
+				MyPoints[i].coordinates[j] = 
+					rand()%(1ll<<BITS_PRECISION-1);
 			}
-			MyPoints[i].own_data_id = MyPoints[i].coordinates[0]^17;
+			MyPoints[i].own_data_id = 
+				MyPoints[i].coordinates[0]^17;
 		}
 	} else {
 		MyPointsCount = 11659;
@@ -39,14 +41,14 @@ int main (int argc, char *argv[]) {
 	}
 	
 	//Printing genereated points
-	/*for(i=0;i<MyPointsCount;i++) {
+	for(i=0;i<MyPointsCount;i++) {
 		printf("Punkt #%d : ",i);
 		for(j=0;j<DIMENSIONS;j++) {
 			printf("%u ", MyPoints[i].coordinates[j]);
 		}
 		printf("\n");
 
-	}*/
+	}
 	MDPoint *NewData = NULL;
 	int NewDataCount = 0;
 
@@ -62,7 +64,7 @@ int main (int argc, char *argv[]) {
 		&NewDataCount
 	);
 
-	int *newPointsCount = calloc(size,sizeof(int));
+	/*int *newPointsCount = calloc(size,sizeof(int));
 	MPI_AlltoAll(&NewDataCount, 1, MPI_INT, newPointsCount, 1, MPI_INT, MPI_COMM_WORLD);
 
 	//printf("%d\n",NewDataCount);
@@ -74,21 +76,28 @@ int main (int argc, char *argv[]) {
 	for(i=0;i<rank;i++)
 		myoffset += newPointsCount[i];
 	MPI_File_seek(offset,1,MPI_SEEK_SET);
+	char *line = calloc(128,sizeof(char));
+	
 	for(i=0;i<NewDataCount;i++) {
+		
 		for(j=0;j<DIMENSIONS;j++) {
-			//printf("%d ", NewData[i].coordinates[j]);
+			sprintf(line, "%d ", NewData[i].coordinates[j]);
 			MPI_File_write(
 				fh,
 
 				
 		}
 		//printf("data_id = %d",NewData[i].own_data_id);
-		printf("%d", rank);
-		printf("\n");*/
-		MDPointRemove(&NewData[i]);
+		sprintf(line,"%d", rank);
+		sprintf(line,"\n");
+		printf("%s",line);
+	}*/
+	for(i=0;i<NewDataCount;i++) {
+		MDPointRemove(&NewData[i]);	
 	}
+	//free(line);*/
 	free(NewData);
-	MPI_File_close(fh);
+	//MPI_File_close(fh);
 	MPI_Finalize();
 	return 0;
 }

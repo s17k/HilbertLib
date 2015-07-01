@@ -5,9 +5,10 @@ MainDBG: Main.c
 	cc -c AxesTranspose.c -o AxesTranspose.o -g
 	mpicc -c HilbertLib.c -o HilbertLib.o -g 
 	mpicc -c Main.c -o Main.o -g
-	cc -c MyTree.c -o MyTree.o
-	cc -c PtrVector.c -o PtrVector.o
-	mpicc MDPoint.o AxesTranspose.o HilbertLib.o Main.o MyTree.o -o Main.x -g 
+	cc -c MyTree.c -o MyTree.o -g
+	cc -c PtrVector.c -o PtrVector.o -g
+	cc -c Pair.c -o Pair.o -g
+	mpicc MDPoint.o AxesTranspose.o HilbertLib.o Main.o MyTree.o Pair.o PtrVector.o -o Main.x -g 
 MyTree: MyTreeTest.c
 	cc -c MDPoint.c -o MDPoint.o -g
 	cc -c AxesTranspose.c -o AxesTranspose.o -g

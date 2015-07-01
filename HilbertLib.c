@@ -365,16 +365,6 @@ hilpos_t * HilbertLibRecvBoundariesFromRoot(int Size, int RootRank) {
 	return recvBuff;
 }
 
-MDPoint getMDPointFromRawBuffer(coord_t* Place, int Dimensions) { // can be easily fasten
-	MDPoint nowy;
-	make_MDPoint(&nowy,Dimensions);
-	int i;
-	for(i=0;i<Dimensions;i++) {
-		nowy.coordinates[i] = *(Place+i);
-	}
-	return nowy;
-}
-
 // Relocate the points, according to Hilbert Curve
 #define SENDING_TAG1  111
 #define SENDING_TAG2  222
@@ -503,10 +493,17 @@ void HilbertLibRelocate(
 			make_MDPoint(&((*NewData)[li]),Dimensions);
 				//getMDPointFromRawBuffer(recvNewDataBuf+li*Dimensions,Dimensions);
                         memcpy(((*NewData)[li]).coordinates,recvNewDataBuf+(li*Dimensions),sizeof(coord_t)*Dimensions);
-			(*NewData)[li].own_data_id = recvTagTBuf[li];
+			((*NewData)[li]).own_data_id = recvTagTBuf[li];
                         li+=1;          
 		}
 	}
+        for(i=0;i<(*NewDataCount);i++) {
+            printf("punkt numer %d : ",i);
+            for(j=0;j<Dimensions;j++) {
+                printf("%d ", ((*NewData)[i]).coordinates[j]);  
+            }
+            printf("\n");
+        }
 	free(sendBuf);
 	free(tagSendBuf);
 	free(recvAmounts);
@@ -540,15 +537,16 @@ void HilbertLibPartition(
 	MyPoints = NULL;
 	//Printing Sorted Points, and their HCoordinates
 	int i,j;
-	/*for(i=0;i<MyPointsCount;i++) {
-		//printf("Punkt #%d : ",i);
+        printf("sorted : \n");
+	for(i=0;i<MyPointsCount;i++) {
+		printf("Punkt #%d : ",i);
 		for(j=0;j<Dimensions;j++) {
 			printf("%d ", SortedData[i].coordinates[j]);
 		}
-		//printf("  | H : %d",HCoordinates[i]);
+		printf("  | H : %f",HCoordinates[i]);
 		printf("\n");
 
-	}*/
+	}
 	
 	hilpos_t * boundaries = NULL;
 	if(rank == RootRank) {
@@ -569,10 +567,10 @@ void HilbertLibPartition(
 		);
 		boundaries = HilbertLibRecvBoundariesFromRoot(size,RootRank);
 	}
-	/*if(rank == 0)
+	if(rank == 0)
 	for(i=0;i<size;i++) {
 		printf("boundaries[%d] = %e\n",i,boundaries[i]);
-	}*/
+	}
 	
 	MDPoint* NewData;
 	int NewDataCount;
@@ -678,7 +676,9 @@ void answerQueries(
 	int* RecvCount,
 	int MyRank,
 	MDPoint*** *SelfQueriesResult,
-	int* *SelfQueries
+	int* *SelfQueriesResultCount,
+	int* *SelfQueriesRank,
+	int* SelfQueriesCount
 ) {
 	int i,j,k,l;
 	int number_of_bytes = sizeof(coord_t) * 2 * Dimensions + sizeof(int);
@@ -729,6 +729,13 @@ void answerQueries(
 					resultsCount++;
 				}
 			}
+		}
+		if(MyRank == i) {
+			(*SelfQueriesResult) = Res;
+			(*SelfQueriesResultCount) = resSize;
+			(*SelfQueriesRank) = queryRank;
+			(*SelfQueriesCount) = RecvCount[i];
+			continue;
 		}
 		Pair *toSort = calloc(allResults,sizeof(Pair));
 		int* whoseIsThatPoint = calloc(allResults,sizeof(int)); // can be omitted
@@ -823,7 +830,13 @@ void recvQueries( // Add MPI_TEST_SOME to fasten
 	int* *ResultSize,
 	int Dimensions,
 	int ProcessCount,
-	int QueriesCount
+	int QueriesCount,
+	int selfQueriesCount,
+	MDPoint*** SelfQueriesResult,
+	int* SelfQueriesResultCount,
+	int* SelfQueriesRank,
+	int  SelfQueriesCount,
+	int  MyRank
 ) {
 	int i,j;
 	PtrVector *VecResults = calloc(QueriesCount,sizeof(PtrVector));
@@ -833,6 +846,9 @@ void recvQueries( // Add MPI_TEST_SOME to fasten
 	int* *cntBuffers = calloc(ProcessCount,sizeof(int*));
 	MPI_Request req;
 	for(i=0;i<ProcessCount;i++) {
+		if(i == MyRank) {
+			cntBuffers[i] = NULL;
+		}
 		cntBuffers[i] = calloc(2,sizeof(int));
 		int* cntBuf = cntBuffers[i];
 		MPI_Irecv(
@@ -851,6 +867,8 @@ void recvQueries( // Add MPI_TEST_SOME to fasten
 	int newNeighboursPtr = 0;
 	int lastNewNeighboursPtr = 0;
 	for(i=0;i<ProcessCount;i++) {
+		if(i == MyRank)
+			continue;
 		int* cntBuf = cntBuffers[i];
 		int big_buff_size = 
 			cntBuf[0] * sizeof(int) + 
@@ -893,13 +911,21 @@ void recvQueries( // Add MPI_TEST_SOME to fasten
 		free(cntBuf);
 		// next points from input 
 	}
+	for(i=0;i<SelfQueriesCount;i++) {
+		for(j=0;j<SelfQueriesResultCount[i];j++) {
+			PtrVectorPB(
+				&VecResults[SelfQueriesRank[j]],
+				SelfQueriesResult[i][j]
+			);
+		}
+	}
 	free(cntBuffers);
-	free(VecResults);
 	for(i=0;i<QueriesCount;i++) {
 		(*Results)[i] = calloc(VecResults[i].size,sizeof(MDPoint*));
 		memcpy((*Results)[i], VecResults[i].arr, VecResults[i].size * sizeof(MDPoint*));
 		PtrVectorDeallocate(&VecResults[i]);
 	}
+	free(VecResults);
 }
 
 
