@@ -22,7 +22,6 @@ hilpos_t GetHCoordinate( coord_t* Z, coord_t *X, coord_t *Y, int b, int n) { // 
 		if(X[n-1] & Q)
 			t ^= Q-1;
 	for(i=0;i<n;i++) X[i]^=t;
-	//coord_t *Y = calloc(n,sizeof(coord_t));
 	int nob = sizeof(coord_t)*8;
 	int wsk = 0;
 	int wskbits =0;

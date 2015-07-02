@@ -1,12 +1,31 @@
+#include <string.h>
+#include <stdbool.h>
+#include <mpi.h>
+#include <time.h>
+#include "AxesTranspose.h"
+#include "HilbertLib.h"
+#include <assert.h>
+#include "MDPoint.h"
+#include "MyTree.h"
+#include "Pair.h"
+#define calloc(a,b) (a==0 ? NULL : calloc(a,b))
 #include<mpi.h>
 #include<stdlib.h>
 #include<stdio.h>
 #include "HilbertLib.h"
 int main (int argc, char *argv[]) {
 	// Initialization
+	
 	MPI_Init(&argc, &argv);
+
+
 	int rank,size;
 	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+	FILE * File;
+	char *arr = calloc(30,sizeof(char));;
+	sprintf(arr,"MainOutput%d",rank);
+	File = fopen(arr,"w");
+	free(arr);
 	MPI_Comm_size(MPI_COMM_WORLD, &size);
 	#define ROOT 0
 	#define DIMENSIONS 3
@@ -17,8 +36,8 @@ int main (int argc, char *argv[]) {
 	int i,j;
 	// Random Input Generation
 	if(1 | (rank != 0)) {
-		MyPointsCount = 3;
-		srand(rank+size);
+		MyPointsCount = 30;
+		srand(time(0) + rank+size);
 		MyPoints = calloc(MyPointsCount,sizeof(MDPoint));
 		for(i=0;i<MyPointsCount;i++) {
 			make_MDPoint(&MyPoints[i],DIMENSIONS);
@@ -42,16 +61,15 @@ int main (int argc, char *argv[]) {
 	
 	//Printing genereated points
 	for(i=0;i<MyPointsCount;i++) {
-		printf("Punkt #%d : ",i);
+		fprintf(File,"Punkt #%d : ",i);
 		for(j=0;j<DIMENSIONS;j++) {
-			printf("%u ", MyPoints[i].coordinates[j]);
+			fprintf(File,"%u ", MyPoints[i].coordinates[j]);
 		}
-		printf("\n");
+		fprintf(File,"\n");
 
 	}
 	MDPoint *NewData = NULL;
 	int NewDataCount = 0;
-
 	HilbertLibPartition( // MyPoints is freed
 		MyPoints,
 		MyPointsCount,
@@ -63,11 +81,25 @@ int main (int argc, char *argv[]) {
 		&NewData,
 		&NewDataCount
 	);
+	fprintf(File,"NewDataCount[%d] = %d\n",rank,NewDataCount);
+	for(i=0;i<NewDataCount;i++) {
 
+		fprintf(File,"rank:#%d point:#%d @@@   ",rank,i);
+		for(j=0;j<DIMENSIONS;j++) {
+			fprintf(File,"%d ", NewData[i].coordinates[j]);
+		}
+		fprintf(File,"\n");
+		MDPointRemove(&NewData[i]);	
+	}
+	free(NewData);
+	fclose(File);
+	MPI_Finalize();
+	
+	return 0;
 	/*int *newPointsCount = calloc(size,sizeof(int));
 	MPI_AlltoAll(&NewDataCount, 1, MPI_INT, newPointsCount, 1, MPI_INT, MPI_COMM_WORLD);
 
-	//printf("%d\n",NewDataCount);
+	//fprintf("%d\n",NewDataCount);
 	MPI_File *fh;
 	MPI_File_open(MPI_COMM_WORLD, "mainResult.dat", MPI_MODE_RDWR, MPI_INFO_NULL, fh);
 	MPI_File_set_size(fh,0);
@@ -81,23 +113,18 @@ int main (int argc, char *argv[]) {
 	for(i=0;i<NewDataCount;i++) {
 		
 		for(j=0;j<DIMENSIONS;j++) {
-			sprintf(line, "%d ", NewData[i].coordinates[j]);
+			sfprintf(line, "%d ", NewData[i].coordinates[j]);
 			MPI_File_write(
 				fh,
 
 				
 		}
-		//printf("data_id = %d",NewData[i].own_data_id);
-		sprintf(line,"%d", rank);
-		sprintf(line,"\n");
-		printf("%s",line);
+		//fprintf("data_id = %d",NewData[i].own_data_id);
+		sfprintf(line,"%d", rank);
+		sfprintf(line,"\n");
+		fprintf("%s",line);
 	}*/
-	for(i=0;i<NewDataCount;i++) {
-		MDPointRemove(&NewData[i]);	
-	}
+
 	//free(line);*/
-	free(NewData);
 	//MPI_File_close(fh);
-	MPI_Finalize();
-	return 0;
 }

@@ -10,6 +10,7 @@
 #include "MDPoint.h"
 #include "MyTree.h"
 #include "Pair.h"
+#define calloc(a,b) (a==0 ? NULL : calloc(a,b))
 
 MDPoint* HomePtr;
 hilpos_t *HilbertPos;
@@ -29,7 +30,7 @@ int HilbertLibCurveSortComparator(const void *_elem1, const void *_elem2) {
 
 // X - data, Datasize - |data|, b - bits, n - |dimensions| [Node]
 void HilbertLibNodeCurveSort( 
-MDPoint *X, // particles represented as MDPoints (input)
+MDPoint *X, // particles represented as MDPoints (input), Values associated with X are passed by to SortedData (Don't double free them)
 MDPoint* *SortedData, //Sorted MDPoints to return (output)
 hilpos_t* *HCoordinates, // Hilbert coordinates to return (output)
 int Datasize, // |data| - number of particles in this node (input)
@@ -143,7 +144,7 @@ int HilbertLibGetNOfParticles(
 	
 	//gather Min and Max from other processes
 	hilpos_t MinRes = HILPOS_T_MAX_VALUE, MaxRes = 0;
-	for(i=0;i<ProcessCount*2;i++) {
+	for(i=0;i<ProcessCount*2;i+=2) {
 		if(recvBuf[i] < MinRes)
 			MinRes = recvBuf[i];
 		if(recvBuf[i+1] > MaxRes)
@@ -165,10 +166,9 @@ int MyPointsCount,
 int particlesRate,
 int nodesCount,
 int RootRank,
-int* how_many_used // how many used is not filled
+int* how_many_used
 ) {
 	hilpos_t bsleft = a, bsright = b, bsmiddle;
-	int* hm = calloc(nodesCount,sizeof(int));
 	int i = 0;
 	int suma;
 	hilpos_t * sendBuff = calloc(2,sizeof(hilpos_t));
@@ -188,12 +188,6 @@ int* how_many_used // how many used is not filled
 		);
 
 		MPI_Reduce(&singlebuff,&suma,1,MPI_INT,MPI_SUM,RootRank,MPI_COMM_WORLD);
-		/*MPI_Gather(&singlebuff,1,MPI_INT,hm,1,MPI_INT,RootRank,MPI_COMM_WORLD);
-		suma = 0;
-		for(i=0;i<nodesCount;i++) {
-			suma += hm[i];		
-		}*/
-		//printf("na tym przedziale jest %d\n",suma);
 		if(suma > particlesRate) {
 			bsright = bsmiddle-HILPOS_EPS;
 		} else {
@@ -213,14 +207,8 @@ int* how_many_used // how many used is not filled
 	);
 
 	MPI_Reduce(&singlebuff,&suma,1,MPI_INT,MPI_SUM,RootRank,MPI_COMM_WORLD);
-	/*MPI_Gather(&singlebuff,1,MPI_INT,hm,1,MPI_INT,RootRank,MPI_COMM_WORLD);
-	suma = 0;
-	for(i=0;i<nodesCount;i++) {
-		suma += hm[i];
-	}*/
 	(*how_many_used) = suma;
 	free(sendBuff);
-	free(hm);
 	return bsleft;
 }
 
@@ -230,7 +218,6 @@ int RootRank, // rank of root
 size_t NodesCount, // number of nodes
 hilpos_t *MyHCoordinates, // Hilbert Coordinates of root points
 size_t MyPointsCount, // Number of points assigned to root
-int b, // |precision bits|
 int dimensions // |dimensions|
 )
 {
@@ -269,7 +256,7 @@ int dimensions // |dimensions|
 		if(i!=(NodesCount-1))
 			particlesRate = allPointsCount/(NodesCount-i-1); 
 	}
-	// last scatter to indicate the end of queries
+	// last bcast to indicate the end of queries
 	hilpos_t* sendbuf = calloc(2,sizeof(hilpos_t));
 	sendbuf[0] = 1;
         sendbuf[1] = 0;
@@ -426,6 +413,7 @@ void HilbertLibRelocate(
 			MPI_COMM_WORLD,
 			&requestNull
 		);
+		MPI_Request_free(&requestNull);
 		MPI_Isend(
 			tagSendBuf + (pref/Dimensions),
 			sendAmounts[i],
@@ -435,6 +423,7 @@ void HilbertLibRelocate(
 			MPI_COMM_WORLD,
 			&requestNull
 		);
+		MPI_Request_free(&requestNull);
 
 		pref += sendAmounts[i]* Dimensions;
 	}
@@ -487,12 +476,13 @@ void HilbertLibRelocate(
 	// Waiting
         if(ProcessCount-zeros != 0)
             MPI_Waitall(actual_size,requestList,MPI_STATUSES_IGNORE);
+	MPI_Barrier(MPI_COMM_WORLD);
         int li =0;
 	for(i=0;i<ProcessCount;i++) {
 		for(j=0;j<recvAmounts[i];j++) {
-			make_MDPoint(&((*NewData)[li]),Dimensions);
+			make_MDPoint((*NewData) + li,Dimensions);
 				//getMDPointFromRawBuffer(recvNewDataBuf+li*Dimensions,Dimensions);
-                        memcpy(((*NewData)[li]).coordinates,recvNewDataBuf+(li*Dimensions),sizeof(coord_t)*Dimensions);
+                        memcpy(((*NewData)+li)->coordinates,recvNewDataBuf+(li*Dimensions),sizeof(coord_t)*Dimensions);			     printf("tworze punkt w %d wymiarach na %p coordinates %p\n",Dimensions,(*NewData)+li,((*NewData)+li)->coordinates);
 			(*NewData)[li].own_data_id = recvTagTBuf[li];
                         li+=1;          
 		}
@@ -530,8 +520,8 @@ void HilbertLibPartition(
 	MyPoints = NULL;
 	//Printing Sorted Points, and their HCoordinates
 	int i,j;
-        printf("sorted : \n");
-	for(i=0;i<MyPointsCount;i++) {
+        //printf("sorted : \n");
+	/*for(i=0;i<MyPointsCount;i++) {
 		printf("Punkt #%d : ",i);
 		for(j=0;j<Dimensions;j++) {
 			printf("%d ", SortedData[i].coordinates[j]);
@@ -539,7 +529,7 @@ void HilbertLibPartition(
 		printf("  | H : %f",HCoordinates[i]);
 		printf("\n");
 
-	}
+	}*/
 	
 	hilpos_t * boundaries = NULL;
 	if(rank == RootRank) {
@@ -548,7 +538,6 @@ void HilbertLibPartition(
 			size,
 			HCoordinates,
 			MyPointsCount,
-			BitsPrecision,
 			Dimensions
 		);
 		HilbertLibSendBoundariesToAll(boundaries,size,RootRank);
