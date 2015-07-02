@@ -4,7 +4,7 @@
 
 typedef unsigned int coord_t;
 #define COORD_T_MAX UINT_MAX
-#define MPI_COORD_T MPI_UNSIGNED_LONG_LONG
+#define MPI_COORD_T MPI_UNSIGNED
 
 //unsigned int hilpos_t
 /*

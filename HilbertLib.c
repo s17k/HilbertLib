@@ -373,6 +373,8 @@ void HilbertLibRelocate(
 	int j;
 	tag_t* tagSendBuf = calloc(MyPointsCount,sizeof(tag_t));
 	coord_t* sendBuf = calloc(MyPointsCount*Dimensions,sizeof(coord_t));
+	assert(sendBuf != NULL);
+	assert(tagSendBuf != NULL);
 	for(i=0;i<MyPointsCount;i++) {
 		for(j=0;j<Dimensions;j++) {
 			sendBuf[wskBuf] = Data[i].coordinates[j];
@@ -404,8 +406,10 @@ void HilbertLibRelocate(
 	for(i=0;i<ProcessCount;i++) {
 		if(sendAmounts[i] == 0)
 			continue;
+		assert(pref < MyPointsCount*Dimensions);
+		assert(pref + sendAmounts[i]*Dimensions <= MyPointsCount*Dimensions);
 		MPI_Isend(
-			sendBuf+pref,
+			&sendBuf[pref],
 			sendAmounts[i]*Dimensions,
 			MPI_COORD_T,
 			i,
@@ -480,9 +484,13 @@ void HilbertLibRelocate(
         int li =0;
 	for(i=0;i<ProcessCount;i++) {
 		for(j=0;j<recvAmounts[i];j++) {
+			assert(li < myNewPointsSize);
+			//printf("pointer = %p\n",(*NewData)+li);
 			make_MDPoint((*NewData) + li,Dimensions);
+			//(*((*NewData) + li)).coordinates = NULL;
 				//getMDPointFromRawBuffer(recvNewDataBuf+li*Dimensions,Dimensions);
-                        memcpy(((*NewData)+li)->coordinates,recvNewDataBuf+(li*Dimensions),sizeof(coord_t)*Dimensions);			     printf("tworze punkt w %d wymiarach na %p coordinates %p\n",Dimensions,(*NewData)+li,((*NewData)+li)->coordinates);
+                        memcpy(((*NewData)+li)->coordinates,recvNewDataBuf+(li*Dimensions),sizeof(coord_t)*Dimensions);
+			//printf("tworze punkt w %d wymiarach na %p coordinates %p\n",Dimensions,(*NewData)+li,((*NewData)+li)->coordinates);
 			(*NewData)[li].own_data_id = recvTagTBuf[li];
                         li+=1;          
 		}
@@ -518,6 +526,13 @@ void HilbertLibPartition(
 	);
 	free(MyPoints);
 	MyPoints = NULL;
+
+	/*//temporary block
+	*NewDataPtr = SortedData;
+	*NewDataSize = MyPointsCount;
+	free(HCoordinates);
+	return;*/
+
 	//Printing Sorted Points, and their HCoordinates
 	int i,j;
         //printf("sorted : \n");
@@ -554,6 +569,14 @@ void HilbertLibPartition(
 		printf("boundaries[%d] = %e\n",i,boundaries[i]);
 	}
 	
+	//temporary block
+	/**NewDataPtr = SortedData;
+	*NewDataSize = MyPointsCount;
+	free(HCoordinates);
+	free(boundaries);
+	return;*/
+
+
 	MDPoint* NewData;
 	int NewDataCount;
 	HilbertLibRelocate(
@@ -809,7 +832,6 @@ void recvQueries( // Add MPI_TEST_SOME to fasten
 	MDPoint* *NewNeighbours,
 	int *NewNeighboursSize,
 	MDPoint** *Results,
-	int* *ResultSize,
 	int Dimensions,
 	int ProcessCount,
 	int QueriesCount,
