@@ -35,7 +35,7 @@ typedef unsigned int tag_t;
 #define MPI_TAG_T MPI_UNSIGNED
 typedef unsigned int amount_t;
 
-static inline hilpos_
+static inline hilpos_t
 GetHCoordinate (coord_t * Z, coord_t * X, coord_t * Y, int b, int n)
 {				// position,bits,dimensions, Z,Y is used
 	memcpy (X, Z, sizeof (coord_t) * n);
